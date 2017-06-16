@@ -2,6 +2,7 @@
 #include "THCGeneral.h"
 #include "THCHalf.h"
 
+
 float THCudaBlas_Sdot(THCState *state, long n, float *x, long incx, float *y, long incy)
 {
   if (n == 1) {
@@ -14,9 +15,9 @@ float THCudaBlas_Sdot(THCState *state, long n, float *x, long incx, float *y, lo
     int i_incx = (int)incx;
     int i_incy = (int)incy;
     float result;
-    cublasHandle_t handle = THCState_getCurrentBlasHandle(state);
-    cublasSetStream(handle, THCState_getCurrentStream(state));
-    THCublasCheck(cublasSdot(handle, i_n, x, i_incx, y, i_incy, &result));
+    hipblasHandle_t handle = THCState_getCurrentBlasHandle(state);
+    hipblasSetStream(handle, THCState_getCurrentStream(state));
+    THCublasCheck(hipblasSdot(handle, i_n, x, i_incx, y, i_incy, &result));
     return result;
   }
 
@@ -37,9 +38,9 @@ double THCudaBlas_Ddot(THCState *state, long n, double *x, long incx, double *y,
     int i_incx = (int)incx;
     int i_incy = (int)incy;
     double result;
-    cublasHandle_t handle = THCState_getCurrentBlasHandle(state);
-    cublasSetStream(handle, THCState_getCurrentStream(state));
-    THCublasCheck(cublasDdot(handle, i_n, x, i_incx, y, i_incy, &result));
+    hipblasHandle_t handle = THCState_getCurrentBlasHandle(state);
+    hipblasSetStream(handle, THCState_getCurrentStream(state));
+    THCublasCheck(hipblasDdot(handle, i_n, x, i_incx, y, i_incy, &result));
     return result;
   }
 
@@ -62,9 +63,17 @@ half THCudaBlas_Hdot(THCState *state, long n, half *x, long incx, half *y, long 
     int i_incx = (int)incx;
     int i_incy = (int)incy;
     half result;
-    cublasHandle_t handle = THCState_getCurrentBlasHandle(state);
-    cublasSetStream(handle, THCState_getCurrentStream(state));
-    THCublasCheck(cublasDotEx(handle, i_n, x, CUDA_R_16F, i_incx, y, CUDA_R_16F, i_incy, &result, CUDA_R_16F, CUDA_R_32F));
+#ifdef HIPBLAS_TODO
+    hipblasHandle_t handle = THCState_getCurrentBlasHandle(state);
+    hipblasSetStream(handle, THCState_getCurrentStream(state));
+    THCublasCheck(hipblasDotEx(handle, i_n, x, CUDA_R_16F, i_incx, y, CUDA_R_16F, i_incy, &result, CUDA_R_16F, CUDA_R_32F));
+#else
+#ifdef __NVCC__
+    hipblasHandle_t handle = THCState_getCurrentBlasHandle(state);
+    cublasSetStream((cublasHandle_t)handle, THCState_getCurrentStream(state));
+    cublasDotEx(handle, i_n, x, CUDA_R_16F, i_incx, y, CUDA_R_16F, i_incy, &result, CUDA_R_16F, CUDA_R_32F);
+#endif
+#endif
     return result;
 }
 
@@ -84,10 +93,10 @@ void THCudaBlas_Sgemv(THCState *state, char trans, long m, long n, float alpha, 
   if(n == 1)
     lda = m;
 
-  cublasOperation_t op;
-  if (trans == 't') op = CUBLAS_OP_T;
-  else if (trans == 'n') op = CUBLAS_OP_N;
-  else if (trans == 'c') op = CUBLAS_OP_C;
+  hipblasOperation_t op;
+  if (trans == 't') op = HIPBLAS_OP_T;
+  else if (trans == 'n') op = HIPBLAS_OP_N;
+  else if (trans == 'c') op = HIPBLAS_OP_C;
 
   if( (m <= INT_MAX) && (n <= INT_MAX) &&
       (lda > 0) && (lda <= INT_MAX) &&
@@ -100,9 +109,10 @@ void THCudaBlas_Sgemv(THCState *state, char trans, long m, long n, float alpha, 
     int i_incx = (int)incx;
     int i_incy = (int)incy;
 
-    cublasHandle_t handle = THCState_getCurrentBlasHandle(state);
-    cublasSetStream(handle, THCState_getCurrentStream(state));
-    THCublasCheck(cublasSgemv(handle, op, i_m, i_n, &alpha, a, i_lda, x, i_incx, &beta, y, i_incy));
+    hipblasHandle_t handle = THCState_getCurrentBlasHandle(state);
+    hipblasSetStream(handle, THCState_getCurrentStream(state));
+    THCublasCheck(hipblasSgemv(handle, op, i_m, i_n, &alpha, a, i_lda, x, i_incx, &beta, y, i_incy));
+
     return;
   }
   THError("Cublas_Sgemv only supports m, n, lda, incx, incy"
@@ -114,10 +124,10 @@ void THCudaBlas_Dgemv(THCState *state, char trans, long m, long n, double alpha,
   if(n == 1)
     lda = m;
 
-  cublasOperation_t op;
-  if (trans == 't') op = CUBLAS_OP_T;
-  else if (trans == 'n') op = CUBLAS_OP_N;
-  else if (trans == 'c') op = CUBLAS_OP_C;
+  hipblasOperation_t op;
+  if (trans == 't') op = HIPBLAS_OP_T;
+  else if (trans == 'n') op = HIPBLAS_OP_N;
+  else if (trans == 'c') op = HIPBLAS_OP_C;
 
   if( (m <= INT_MAX) && (n <= INT_MAX) &&
       (lda > 0) && (lda <= INT_MAX) &&
@@ -130,9 +140,9 @@ void THCudaBlas_Dgemv(THCState *state, char trans, long m, long n, double alpha,
     int i_incx = (int)incx;
     int i_incy = (int)incy;
 
-    cublasHandle_t handle = THCState_getCurrentBlasHandle(state);
-    cublasSetStream(handle, THCState_getCurrentStream(state));
-    THCublasCheck(cublasDgemv(handle, op, i_m, i_n, &alpha, a, i_lda, x, i_incx, &beta, y, i_incy));
+    hipblasHandle_t handle = THCState_getCurrentBlasHandle(state);
+    hipblasSetStream(handle, THCState_getCurrentStream(state));
+    THCublasCheck(hipblasDgemv(handle, op, i_m, i_n, &alpha, a, i_lda, x, i_incx, &beta, y, i_incy));
     return;
   }
   THError("Cublas_Dgemv only supports m, n, lda, incx, incy"
@@ -151,10 +161,9 @@ void THCudaBlas_Sger(THCState *state, long m, long n, float alpha, float *x, lon
       int i_lda = (int)lda;
       int i_incx = (int)incx;
       int i_incy = (int)incy;
-
-      cublasHandle_t handle = THCState_getCurrentBlasHandle(state);
-      cublasSetStream(handle, THCState_getCurrentStream(state));
-      THCublasCheck(cublasSger(handle, i_m, i_n, &alpha, x, i_incx, y, i_incy, a, i_lda));
+      hipblasHandle_t handle = THCState_getCurrentBlasHandle(state);
+      hipblasSetStream(handle, THCState_getCurrentStream(state));
+      THCublasCheck(hipblasSger(handle, i_m, i_n, &alpha, x, i_incx, y, i_incy, a, i_lda));
       return;
     }
   THError("Cublas_Sger only supports m, n, lda, incx, incy"
@@ -173,17 +182,33 @@ void THCudaBlas_Dger(THCState *state, long m, long n, double alpha, double *x, l
       int i_lda = (int)lda;
       int i_incx = (int)incx;
       int i_incy = (int)incy;
-
-      cublasHandle_t handle = THCState_getCurrentBlasHandle(state);
-      cublasSetStream(handle, THCState_getCurrentStream(state));
-      THCublasCheck(cublasDger(handle, i_m, i_n, &alpha, x, i_incx, y, i_incy, a, i_lda));
+#ifdef HIPBLAS_TODO
+      hipblasHandle_t handle = THCState_getCurrentBlasHandle(state);
+      hipblasSetStream(handle, THCState_getCurrentStream(state));
+      THCublasCheck(hipblasDger(handle, i_m, i_n, &alpha, x, i_incx, y, i_incy, a, i_lda));
+#else
+#ifdef __NVCC__
+    hipblasHandle_t handle = THCState_getCurrentBlasHandle(state);
+    cublasSetStream((cublasHandle_t)handle, THCState_getCurrentStream(state));
+    cublasDger(handle, i_m, i_n, &alpha, x, i_incx, y, i_incy, a, i_lda);
+#endif
+#endif
       return;
     }
   THError("Cublas_Dger only supports m, n, lda, incx, incy"
           "with the bound [val] <= %d", INT_MAX);
 }
 
-
+hipblasOperation_t convertTransToHipblasOperation(char trans) {
+  if (trans == 't') return HIPBLAS_OP_T;
+  else if (trans == 'n') return HIPBLAS_OP_N;
+  else if (trans == 'c') return HIPBLAS_OP_C;
+  else {
+    THError("trans must be one of: t, n, c");
+    return HIPBLAS_OP_T;
+  }
+}
+#ifdef __NVCC__
 cublasOperation_t convertTransToCublasOperation(char trans) {
   if (trans == 't') return CUBLAS_OP_T;
   else if (trans == 'n') return CUBLAS_OP_N;
@@ -193,7 +218,7 @@ cublasOperation_t convertTransToCublasOperation(char trans) {
     return CUBLAS_OP_T;
   }
 }
-
+#endif
 void adjustLd(char transa, char transb, long m, long n, long k, long *lda, long *ldb, long *ldc)
 {
   int transa_ = ((transa == 't') || (transa == 'T'));
@@ -229,8 +254,8 @@ void adjustLd(char transa, char transb, long m, long n, long k, long *lda, long 
 void THCudaBlas_Sgemm(THCState *state, char transa, char transb, long m, long n, long k, float alpha, float *a, long lda, float *b, long ldb, float beta, float *c, long ldc)
 {
   adjustLd(transa, transb, m, n, k, &lda, &ldb, &ldc);
-  cublasOperation_t opa = convertTransToCublasOperation(transa);
-  cublasOperation_t opb = convertTransToCublasOperation(transb);
+  hipblasOperation_t opa = convertTransToHipblasOperation(transa);
+  hipblasOperation_t opb = convertTransToHipblasOperation(transb);
 
   if( (m <= INT_MAX) && (n <= INT_MAX) && (k <= INT_MAX) && (lda <= INT_MAX)  && (ldb <= INT_MAX) && (ldc <= INT_MAX) )
   {
@@ -241,9 +266,9 @@ void THCudaBlas_Sgemm(THCState *state, char transa, char transb, long m, long n,
     int i_ldb = (int)ldb;
     int i_ldc = (int)ldc;
 
-    cublasHandle_t handle = THCState_getCurrentBlasHandle(state);
-    cublasSetStream(handle, THCState_getCurrentStream(state));
-    THCublasCheck(cublasSgemm(handle, opa, opb, i_m, i_n, i_k, &alpha, a, i_lda, b, i_ldb, &beta, c, i_ldc));
+    hipblasHandle_t handle = THCState_getCurrentBlasHandle(state);
+    hipblasSetStream(handle, THCState_getCurrentStream(state));
+    THCublasCheck(hipblasSgemm(handle, opa, opb, i_m, i_n, i_k, &alpha, a, i_lda, b, i_ldb, &beta, c, i_ldc));
     return;
   }
   THError("Cublas_Sgemm only supports m, n, k, lda, ldb, ldc"
@@ -259,8 +284,8 @@ void THCudaBlas_Sgemm(THCState *state, char transa, char transb, long m, long n,
 void THCudaBlas_Hgemm(THCState *state, char transa, char transb, long m, long n, long k, half alpha, half *a, long lda, half *b, long ldb, half beta, half *c, long ldc)
 {
   adjustLd(transa, transb, m, n, k, &lda, &ldb, &ldc);
-  cublasOperation_t opa = convertTransToCublasOperation(transa);
-  cublasOperation_t opb = convertTransToCublasOperation(transb);
+  hipblasOperation_t opa = convertTransToHipblasOperation(transa);
+  hipblasOperation_t opb = convertTransToHipblasOperation(transb);
 
   if( (m <= INT_MAX) && (n <= INT_MAX) && (k <= INT_MAX) && (lda <= INT_MAX)  && (ldb <= INT_MAX) && (ldc <= INT_MAX) )
   {
@@ -271,12 +296,13 @@ void THCudaBlas_Hgemm(THCState *state, char transa, char transb, long m, long n,
     int i_ldb = (int)ldb;
     int i_ldc = (int)ldc;
 
-    cublasHandle_t handle = THCState_getCurrentBlasHandle(state);
-    cublasSetStream(handle, THCState_getCurrentStream(state));
+    hipblasHandle_t handle = THCState_getCurrentBlasHandle(state);
+    hipblasSetStream(handle, THCState_getCurrentStream(state));
 
     // Check for native Hgemm support
+#ifdef __NVCC__
     if (THC_fastHalfInstructions(state)) {
-      THCublasCheck(cublasHgemm(handle, opa, opb,
+      THCublasCheck(hipblasHgemm(handle, opa, opb,
 				i_m, i_n, i_k, &alpha, a, i_lda, b, i_ldb,
 				&beta, c, i_ldc));
     } else {
@@ -284,24 +310,29 @@ void THCudaBlas_Hgemm(THCState *state, char transa, char transb, long m, long n,
       float fAlpha = THC_half2float(alpha);
       float fBeta = THC_half2float(beta);
 
-      THCublasCheck(cublasSgemmEx(handle, opa, opb,
+      /*THCublasCheck(cublasSgemmEx(handle, opa, opb,
 				  i_m, i_n, i_k, &fAlpha,
                                   a, CUDA_R_16F, i_lda, b, CUDA_R_16F,
-				  i_ldb, &fBeta, c, CUDA_R_16F, i_ldc));
+				  i_ldb, &fBeta, c, CUDA_R_16F, i_ldc));*/
     }
-
+#elif __HCC__
+      hipblasHgemm(handle, opa, opb,
+				i_m, i_n, i_k, &alpha, a, i_lda, b, i_ldb,
+				&beta, c, i_ldc);
+#endif
     return;
   }
   THError("Cublas_Hgemm only supports m, n, k, lda, ldb, ldc"
           "with th bound [val] <= %d", INT_MAX);
+
 }
 #endif
 
 void THCudaBlas_Dgemm(THCState *state, char transa, char transb, long m, long n, long k, double alpha, double *a, long lda, double *b, long ldb, double beta, double *c, long ldc)
 {
   adjustLd(transa, transb, m, n, k, &lda, &ldb, &ldc);
-  cublasOperation_t opa = convertTransToCublasOperation(transa);
-  cublasOperation_t opb = convertTransToCublasOperation(transb);
+  hipblasOperation_t opa = convertTransToHipblasOperation(transa);
+  hipblasOperation_t opb = convertTransToHipblasOperation(transb);
 
   if( (m <= INT_MAX) && (n <= INT_MAX) && (k <= INT_MAX) && (lda <= INT_MAX)  && (ldb <= INT_MAX) && (ldc <= INT_MAX) )
   {
@@ -312,9 +343,9 @@ void THCudaBlas_Dgemm(THCState *state, char transa, char transb, long m, long n,
     int i_ldb = (int)ldb;
     int i_ldc = (int)ldc;
 
-    cublasHandle_t handle = THCState_getCurrentBlasHandle(state);
-    cublasSetStream(handle, THCState_getCurrentStream(state));
-    THCublasCheck(cublasDgemm(handle, opa, opb, i_m, i_n, i_k, &alpha, a, i_lda, b, i_ldb, &beta, c, i_ldc));
+    hipblasHandle_t handle = THCState_getCurrentBlasHandle(state);
+    hipblasSetStream(handle, THCState_getCurrentStream(state));
+    THCublasCheck(hipblasDgemm(handle, opa, opb, i_m, i_n, i_k, &alpha, a, i_lda, b, i_ldb, &beta, c, i_ldc));
     return;
   }
   THError("Cublas_Dgemm only supports m, n, k, lda, ldb, ldc"
@@ -333,12 +364,12 @@ void THCudaBlas_SgemmBatched(THCState *state, char transa, char transb, long m, 
   }
 
   adjustLd(transa, transb, m, n, k, &lda, &ldb, &ldc);
-  cublasOperation_t opa = convertTransToCublasOperation(transa);
-  cublasOperation_t opb = convertTransToCublasOperation(transb);
+  hipblasOperation_t opa = convertTransToHipblasOperation(transa);
+  hipblasOperation_t opb = convertTransToHipblasOperation(transb);
 
-  cublasHandle_t handle = THCState_getCurrentBlasHandle(state);
-  cublasSetStream(handle, THCState_getCurrentStream(state));
-  THCublasCheck(cublasSgemmBatched(handle,
+  hipblasHandle_t handle = THCState_getCurrentBlasHandle(state);
+  hipblasSetStream(handle, THCState_getCurrentStream(state));
+  THCublasCheck(hipblasSgemmBatched(handle,
                                    opa, opb, (int)m, (int)n, (int)k,
                                    &alpha, a, (int)lda, b, (int)ldb, &beta, c, (int)ldc,
                                    (int)batchCount));
@@ -355,12 +386,12 @@ void THCudaBlas_DgemmBatched(THCState *state, char transa, char transb, long m, 
   }
 
   adjustLd(transa, transb, m, n, k, &lda, &ldb, &ldc);
-  cublasOperation_t opa = convertTransToCublasOperation(transa);
-  cublasOperation_t opb = convertTransToCublasOperation(transb);
+  hipblasOperation_t opa = convertTransToHipblasOperation(transa);
+  hipblasOperation_t opb = convertTransToHipblasOperation(transb);
 
-  cublasHandle_t handle = THCState_getCurrentBlasHandle(state);
-  cublasSetStream(handle, THCState_getCurrentStream(state));
-  THCublasCheck(cublasDgemmBatched(handle,
+  hipblasHandle_t handle = THCState_getCurrentBlasHandle(state);
+  hipblasSetStream(handle, THCState_getCurrentStream(state));
+  THCublasCheck(hipblasDgemmBatched(handle,
                                    opa, opb, (int)m, (int)n, (int)k,
                                    &alpha, a, (int)lda, b, (int)ldb, &beta, c, (int)ldc,
                                    (int)batchCount));
@@ -373,9 +404,11 @@ void THCudaBlas_Sgetrf(THCState *state, int n, float **a, int lda, int *pivot, i
     THError("Cublas_Sgetrf only supports n, lda, batchSize"
             "with the bound [val] <= %d", INT_MAX);
   }
-  cublasHandle_t handle = THCState_getCurrentBlasHandle(state);
-  cublasSetStream(handle, THCState_getCurrentStream(state));
-  THCublasCheck(cublasSgetrfBatched(handle, n, a, lda, pivot, info, batchSize));
+#ifdef HIPBLAS_TODO
+  hipblasHandle_t handle = THCState_getCurrentBlasHandle(state);
+  hipblasSetStream(handle, THCState_getCurrentStream(state));
+  THCublasCheck(hipblasSgetrfBatched(handle, n, a, lda, pivot, info, batchSize));
+#endif
 }
 
 void THCudaBlas_Dgetrf(THCState *state, int n, double **a, int lda, int *pivot, int *info, int batchSize) {
@@ -384,9 +417,11 @@ void THCudaBlas_Dgetrf(THCState *state, int n, double **a, int lda, int *pivot, 
     THError("Cublas_Dgetrf only supports n, lda, batchSize"
             "with the bound [val] <= %d", INT_MAX);
   }
-  cublasHandle_t handle = THCState_getCurrentBlasHandle(state);
-  cublasSetStream(handle, THCState_getCurrentStream(state));
-  THCublasCheck(cublasDgetrfBatched(handle, n, a, lda, pivot, info, batchSize));
+#ifdef HIPBLAS_TODO
+  hipblasHandle_t handle = THCState_getCurrentBlasHandle(state);
+  hipblasSetStream(handle, THCState_getCurrentStream(state));
+  THCublasCheck(hipblasDgetrfBatched(handle, n, a, lda, pivot, info, batchSize));
+#endif
 }
 
 void THCudaBlas_Sgetri(THCState *state, int n, const float **a, int lda, int *pivot, float **c, int ldc, int *info, int batchSize) {
@@ -396,9 +431,11 @@ void THCudaBlas_Sgetri(THCState *state, int n, const float **a, int lda, int *pi
     THError("Cublas_Sgetri only supports n, lda, ldc, batchSize"
             "with the bound [val] <= %d", INT_MAX);
   }
-  cublasHandle_t handle = THCState_getCurrentBlasHandle(state);
-  cublasSetStream(handle, THCState_getCurrentStream(state));
-  THCublasCheck(cublasSgetriBatched(handle, n, a, lda, pivot, c, ldc, info, batchSize));
+#ifdef HIPBLAS_TODO
+  hipblasHandle_t handle = THCState_getCurrentBlasHandle(state);
+  hipblasSetStream(handle, THCState_getCurrentStream(state));
+  THCublasCheck(hipblasSgetriBatched(handle, n, a, lda, pivot, c, ldc, info, batchSize));
+#endif
 }
 
 void THCudaBlas_Dgetri(THCState *state, int n, const double **a, int lda, int *pivot, double **c, int ldc, int *info, int batchSize) {
@@ -408,7 +445,9 @@ void THCudaBlas_Dgetri(THCState *state, int n, const double **a, int lda, int *p
     THError("Cublas_Dgetri only supports n, lda, ldc, batchSize"
             "with the bound [val] <= %d", INT_MAX);
   }
-  cublasHandle_t handle = THCState_getCurrentBlasHandle(state);
-  cublasSetStream(handle, THCState_getCurrentStream(state));
-  THCublasCheck(cublasDgetriBatched(handle, n, a, lda, pivot, c, ldc, info, batchSize));
+#ifdef HIPBLAS_TODO
+  hipblasHandle_t handle = THCState_getCurrentBlasHandle(state);
+  hipblasSetStream(handle, THCState_getCurrentStream(state));
+  THCublasCheck(hipblasDgetriBatched(handle, n, a, lda, pivot, c, ldc, info, batchSize));
+#endif
 }

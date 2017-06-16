@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 #include "THCTensorMath.h"
 #include "THCGeneral.h"
 #include "THCApply.cuh"
@@ -73,16 +74,19 @@ struct IndexToScatterGatherOffsets<IndexType, Real, -1> {
   }
 };
 
+
 template <typename IndexType, typename Real, int Dims>
-__global__ void THCudaTensor_gatherKernel(
-    TensorInfo<Real, IndexType> tensor,
-    TensorInfo<Real, IndexType> src,
-    TensorInfo<long, IndexType> index,
+__global__
+void THCudaTensor_gatherKernel(
+    reference_to_const(TensorInfo<Real, IndexType>) tensor,
+    reference_to_const(TensorInfo<Real, IndexType>) src,
+    reference_to_const(TensorInfo<long, IndexType>) index,
     const int dim,
-    const IndexType totalElements) {
-  for (IndexType linearId = blockIdx.x * blockDim.x + threadIdx.x;
+    const IndexType totalElements)
+{
+  for (IndexType linearId = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
        linearId < totalElements;
-       linearId += gridDim.x * blockDim.x) {
+       linearId += hipGridDim_x * hipBlockDim_x) {
     IndexType tensorOffset = 0;
     IndexType srcOffset = 0;
     IndexType indexOffset = 0;
@@ -100,15 +104,17 @@ __global__ void THCudaTensor_gatherKernel(
 }
 
 template <typename IndexType, typename Real, int Dims>
-__global__ void THCudaTensor_scatterKernel(
-    TensorInfo<Real, IndexType> tensor,
-    TensorInfo<Real, IndexType> src,
-    TensorInfo<long, IndexType> index,
-    const int dim,
-    const IndexType totalElements) {
-  for (IndexType linearId = blockIdx.x * blockDim.x + threadIdx.x;
+__global__
+void THCudaTensor_scatterKernel(
+    reference_to_const(TensorInfo<Real, IndexType>) tensor,
+    reference_to_const(TensorInfo<Real, IndexType>) src,
+    reference_to_const(TensorInfo<long, IndexType>) index,
+    int dim,
+    IndexType totalElements)
+{
+  for (IndexType linearId = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
        linearId < totalElements;
-       linearId += gridDim.x * blockDim.x) {
+       linearId += hipGridDim_x * hipBlockDim_x) {
     IndexType tensorOffset = 0;
     IndexType srcOffset = 0;
     IndexType indexOffset = 0;
@@ -126,15 +132,18 @@ __global__ void THCudaTensor_scatterKernel(
 }
 
 template <typename IndexType, typename Real, int Dims>
-__global__ void THCudaTensor_scatterFillKernel(
-    TensorInfo<Real, IndexType> tensor,
-    TensorInfo<long, IndexType> index,
+__global__
+inline
+void THCudaTensor_scatterFillKernel(
+    reference_to_const(TensorInfo<Real, IndexType>) tensor,
+    reference_to_const(TensorInfo<long, IndexType>) index,
     Real value,
-    const int dim,
-    const IndexType totalElements) {
-  for (IndexType linearId = blockIdx.x * blockDim.x + threadIdx.x;
+    int dim,
+    IndexType totalElements)
+{
+  for (IndexType linearId = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
        linearId < totalElements;
-       linearId += gridDim.x * blockDim.x) {
+       linearId += hipGridDim_x * hipBlockDim_x) {
     IndexType tensorOffset = 0;
     IndexType indexOffset = 0;
 

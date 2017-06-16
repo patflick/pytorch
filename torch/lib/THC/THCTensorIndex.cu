@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 #include "THC.h"
 #include "THCTensorMath.h"
 #include "THCGeneral.h"
@@ -11,6 +12,7 @@
 #include "THCNumerics.cuh"
 #include "THCAtomics.cuh"
 #include <algorithm> // for std::min
+#include "hip/hip_runtime.h"
 
 // We prefer this kernel to avoid reloading index points if the number
 // of indices is a small number.
@@ -19,13 +21,16 @@
 // indexCopyLargeIndex kernel is a better choice to increase
 // parallelism.
 template <typename T, typename IndexType, int DstDim, int SrcDim, int IdxDim>
-__global__ void indexCopySmallIndex(TensorInfo<T, IndexType> dst,
-                                    TensorInfo<T, IndexType> src,
-                                    TensorInfo<long, IndexType> indices,
-                                    int dstCopyDim,
-                                    int srcCopyDim,
-                                    IndexType innerSize,
-                                    long dstCopyDimSize) {
+__global__
+void indexCopySmallIndex(
+    reference_to_const(TensorInfo<T, IndexType>) dst,
+    reference_to_const(TensorInfo<T, IndexType>) src,
+    reference_to_const(TensorInfo<long, IndexType>) indices,
+    int dstCopyDim,
+    int srcCopyDim,
+    IndexType innerSize,
+    long dstCopyDimSize)
+{
   // In order to avoid reloading the index that we are copying, load
   // it once to handle all of the points that are being selected, so
   // it can be reused as much as possible. This kernel is chosen when
@@ -39,9 +44,9 @@ __global__ void indexCopySmallIndex(TensorInfo<T, IndexType> dst,
     if (dstIndex < dstCopyDimSize) {
       // We stride over the output ignoring the indexed dimension
       // (innerSize), whose offset calculation is handled differently
-      for (IndexType linearIndex = blockIdx.x * blockDim.x + threadIdx.x;
+      for (IndexType linearIndex = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
            linearIndex < innerSize;
-           linearIndex += gridDim.x * blockDim.x) {
+           linearIndex += hipGridDim_x * hipBlockDim_x) {
         IndexType dstOffset =
           IndexToOffset<T, IndexType, DstDim>::get(linearIndex, dst);
 
@@ -64,18 +69,21 @@ __global__ void indexCopySmallIndex(TensorInfo<T, IndexType> dst,
 // indexCopySmallIndex kernel is a better choice to reduce memory
 // accesses.
 template <typename T, typename IndexType, int DstDim, int SrcDim, int IdxDim>
-__global__ void indexCopyLargeIndex(TensorInfo<T, IndexType> dst,
-                                    TensorInfo<T, IndexType> src,
-                                    TensorInfo<long, IndexType> indices,
-                                    int dstCopyDim,
-                                    int srcCopyDim,
-                                    IndexType innerSize,
-                                    long dstCopyDimSize) {
+__global__
+void indexCopyLargeIndex(
+    reference_to_const(TensorInfo<T, IndexType>) dst,
+    reference_to_const(TensorInfo<T, IndexType>) src,
+    reference_to_const(TensorInfo<long, IndexType>) indices,
+    int dstCopyDim,
+    int srcCopyDim,
+    IndexType innerSize,
+    long dstCopyDimSize)
+{
   // We stride over the output including the indexed dimension
   // (totalSize), and calculate the destination index point based on that
-  for (IndexType linearIndex = blockIdx.x * blockDim.x + threadIdx.x;
+  for (IndexType linearIndex = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
        linearIndex < innerSize * indices.sizes[0];
-       linearIndex += gridDim.x * blockDim.x) {
+       linearIndex += hipGridDim_x * hipBlockDim_x) {
     IndexType srcIndex = linearIndex / innerSize;
     IndexType elementInSlice = linearIndex % innerSize;
 
@@ -104,13 +112,16 @@ __global__ void indexCopyLargeIndex(TensorInfo<T, IndexType> dst,
 // indexAddLargeIndex kernel is a better choice to increase
 // parallelism.
 template <typename T, typename IndexType, int DstDim, int SrcDim, int IdxDim>
-__global__ void indexAddSmallIndex(TensorInfo<T, IndexType> dst,
-                                   TensorInfo<T, IndexType> src,
-                                   TensorInfo<long, IndexType> indices,
-                                   int dstAddDim,
-                                   int srcAddDim,
-                                   IndexType innerSize,
-                                   long dstAddDimSize) {
+__global__
+void indexAddSmallIndex(
+    reference_to_const(TensorInfo<T, IndexType>) dst,
+    reference_to_const(TensorInfo<T, IndexType>) src,
+    reference_to_const(TensorInfo<long, IndexType>) indices,
+    int dstAddDim,
+    int srcAddDim,
+    IndexType innerSize,
+    long dstAddDimSize)
+{
   // In order to avoid reloading the index that we are copying, load
   // it once to handle all of the points that are being selected, so
   // it can be reused as much as possible. This kernel is chosen when
@@ -124,9 +135,9 @@ __global__ void indexAddSmallIndex(TensorInfo<T, IndexType> dst,
     if (dstIndex < dstAddDimSize) {
       // We stride over the output ignoring the indexed dimension
       // (innerSize), whose offset calculation is handled differently
-      for (IndexType linearIndex = blockIdx.x * blockDim.x + threadIdx.x;
+      for (IndexType linearIndex = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
            linearIndex < innerSize;
-           linearIndex += gridDim.x * blockDim.x) {
+           linearIndex += hipGridDim_x * hipBlockDim_x) {
         IndexType dstOffset =
           IndexToOffset<T, IndexType, DstDim>::get(linearIndex, dst);
         dstOffset += dstIndex * dst.strides[dstAddDim];
@@ -148,18 +159,21 @@ __global__ void indexAddSmallIndex(TensorInfo<T, IndexType> dst,
 // indexAddSmallIndex kernel is a better choice to reduce memory
 // accesses.
 template <typename T, typename IndexType, int DstDim, int SrcDim, int IdxDim>
-__global__ void indexAddLargeIndex(TensorInfo<T, IndexType> dst,
-                                   TensorInfo<T, IndexType> src,
-                                   TensorInfo<long, IndexType> indices,
-                                   int dstAddDim,
-                                   int srcAddDim,
-                                   IndexType innerSize,
-                                   long dstAddDimSize) {
+__global__
+void indexAddLargeIndex(
+    reference_to_const(TensorInfo<T, IndexType>) dst,
+    reference_to_const(TensorInfo<T, IndexType>) src,
+    reference_to_const(TensorInfo<long, IndexType>) indices,
+    int dstAddDim,
+    int srcAddDim,
+    IndexType innerSize,
+    long dstAddDimSize)
+{
   // We stride over the output including the indexed dimension
   // (totalSize), and calculate the destination index point based on that
-  for (IndexType linearIndex = blockIdx.x * blockDim.x + threadIdx.x;
+  for (IndexType linearIndex = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
        linearIndex < innerSize * indices.sizes[0];
-       linearIndex += gridDim.x * blockDim.x) {
+       linearIndex += hipGridDim_x * hipBlockDim_x) {
     IndexType srcIndex = linearIndex / innerSize;
     IndexType elementInSlice = linearIndex % innerSize;
 
@@ -188,12 +202,15 @@ __global__ void indexAddLargeIndex(TensorInfo<T, IndexType> dst,
 // indexFillLargeIndex kernel is a better choice to increase
 // parallelism.
 template <typename T, typename IndexType, int DstDim, int IdxDim>
-__global__ void indexFillSmallIndex(TensorInfo<T, IndexType> dst,
-                                    TensorInfo<long, IndexType> indices,
-                                    int dstFillDim,
-                                    IndexType innerSize,
-                                    long dstFillDimSize,
-                                    T val) {
+__global__
+void indexFillSmallIndex(
+    reference_to_const(TensorInfo<T, IndexType>) dst,
+    reference_to_const(TensorInfo<long, IndexType>) indices,
+    int dstFillDim,
+    IndexType innerSize,
+    long dstFillDimSize,
+    T val)
+{
   // In order to avoid reloading the index that we are copying, load
   // it once to handle all of the points that are being selected, so
   // it can be reused as much as possible. This kernel is chosen when
@@ -207,9 +224,9 @@ __global__ void indexFillSmallIndex(TensorInfo<T, IndexType> dst,
     if (dstIndex < dstFillDimSize) {
       // We stride over the output ignoring the indexed dimension
       // (innerSize), whose offset calculation is handled differently
-      for (IndexType linearIndex = blockIdx.x * blockDim.x + threadIdx.x;
+      for (IndexType linearIndex = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
            linearIndex < innerSize;
-           linearIndex += gridDim.x * blockDim.x) {
+           linearIndex += hipGridDim_x * hipBlockDim_x) {
         IndexType dstOffset =
           IndexToOffset<T, IndexType, DstDim>::get(linearIndex, dst);
         dstOffset += dstIndex_ * dst.strides[dstFillDim];
@@ -227,17 +244,20 @@ __global__ void indexFillSmallIndex(TensorInfo<T, IndexType> dst,
 // indexFillSmallIndex kernel is a better choice to reduce memory
 // accesses.
 template <typename T, typename IndexType, int DstDim, int IdxDim>
-__global__ void indexFillLargeIndex(TensorInfo<T, IndexType> dst,
-                                    TensorInfo<long, IndexType> indices,
-                                    int dstFillDim,
-                                    IndexType innerSize,
-                                    long dstFillDimSize,
-                                    T val) {
+__global__
+void indexFillLargeIndex(
+    reference_to_const(TensorInfo<T, IndexType>) dst,
+    reference_to_const(TensorInfo<long, IndexType>) indices,
+    int dstFillDim,
+    IndexType innerSize,
+    long dstFillDimSize,
+    T val)
+{
   // We stride over the output including the indexed dimension
   // (totalSize), and calculate the destination index point based on that
-  for (IndexType linearIndex = blockIdx.x * blockDim.x + threadIdx.x;
+  for (IndexType linearIndex = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
        linearIndex < innerSize * indices.sizes[0];
-       linearIndex += gridDim.x * blockDim.x) {
+       linearIndex += hipGridDim_x * hipBlockDim_x) {
     IndexType dstIndex = linearIndex / innerSize;
     IndexType elementInSlice = linearIndex % innerSize;
 
@@ -262,13 +282,16 @@ __global__ void indexFillLargeIndex(TensorInfo<T, IndexType> dst,
 // indexSelectLargeIndex kernel is a better choice to increase
 // parallelism.
 template <typename T, typename IndexType, int DstDim, int SrcDim, int IdxDim>
-__global__ void indexSelectSmallIndex(TensorInfo<T, IndexType> dst,
-                                      TensorInfo<T, IndexType> src,
-                                      TensorInfo<long, IndexType> indices,
-                                      int dstSelectDim,
-                                      int srcSelectDim,
-                                      IndexType innerSize,
-                                      long srcSelectDimSize) {
+__global__
+void indexSelectSmallIndex(
+    reference_to_const(TensorInfo<T, IndexType>) dst,
+    reference_to_const(TensorInfo<T, IndexType>) src,
+    reference_to_const(TensorInfo<long, IndexType>) indices,
+    int dstSelectDim,
+    int srcSelectDim,
+    IndexType innerSize,
+    long srcSelectDimSize)
+{
   // In order to avoid reloading the index that we are copying, load
   // it once to handle all of the points that are being selected, so
   // it can be reused as much as possible. This kernel is chosen when
@@ -282,9 +305,9 @@ __global__ void indexSelectSmallIndex(TensorInfo<T, IndexType> dst,
     if (srcIndex < srcSelectDimSize) {
       // We stride over the output ignoring the indexed dimension
       // (innerSize), whose offset calculation is handled differently
-      for (IndexType linearIndex = blockIdx.x * blockDim.x + threadIdx.x;
+      for (IndexType linearIndex = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
            linearIndex < innerSize;
-           linearIndex += gridDim.x * blockDim.x) {
+           linearIndex += hipGridDim_x * hipBlockDim_x) {
         IndexType dstOffset =
           IndexToOffset<T, IndexType, DstDim>::get(linearIndex, dst);
         dstOffset += dstIndex * dst.strides[dstSelectDim];
@@ -306,19 +329,22 @@ __global__ void indexSelectSmallIndex(TensorInfo<T, IndexType> dst,
 // indexSelectSmallIndex kernel is a better choice to reduce memory
 // accesses.
 template <typename T, typename IndexType, int DstDim, int SrcDim, int IdxDim>
-__global__ void indexSelectLargeIndex(TensorInfo<T, IndexType> dst,
-                                      TensorInfo<T, IndexType> src,
-                                      TensorInfo<long, IndexType> indices,
-                                      int dstSelectDim,
-                                      int srcSelectDim,
-                                      IndexType totalSize,
-                                      IndexType innerSize,
-                                      long srcSelectDimSize) {
+__global__
+void indexSelectLargeIndex(
+    reference_to_const(TensorInfo<T, IndexType>) dst,
+    reference_to_const(TensorInfo<T, IndexType>) src,
+    reference_to_const(TensorInfo<long, IndexType>) indices,
+    int dstSelectDim,
+    int srcSelectDim,
+    IndexType totalSize,
+    IndexType innerSize,
+    long srcSelectDimSize)
+{
   // We stride over the output including the indexed dimension
   // (totalSize), and calculate the destination index point based on that
-  for (IndexType linearIndex = blockIdx.x * blockDim.x + threadIdx.x;
+  for (IndexType linearIndex = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
        linearIndex < totalSize;
-       linearIndex += gridDim.x * blockDim.x) {
+       linearIndex += hipGridDim_x * hipBlockDim_x) {
     IndexType dstIndex = linearIndex / innerSize;
     IndexType elementInSlice = linearIndex % innerSize;
 

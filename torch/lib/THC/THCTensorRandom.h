@@ -5,8 +5,12 @@
 
 /* Generator */
 typedef struct _Generator {
+#ifdef CURAND_PATH
   struct curandStateMtgp32* gen_states;
   struct mtgp32_kernel_params *kernel_params;
+#else
+  struct HipRandStateMtgp32* h_gen_states;
+#endif
   int initf;
   unsigned long initial_seed;
 } Generator;
@@ -38,6 +42,9 @@ THC_API void THCudaTensor_logNormal(struct THCState *state, THCudaTensor *self, 
 
 THC_API void THCudaTensor_multinomial(struct THCState *state, THCudaTensor *self, THCudaTensor *prob_dist, int n_sample, int with_replacement);
 
+#ifdef CURAND_PATH
 THC_API struct curandStateMtgp32* THCRandom_generatorStates(struct THCState* state);
-
+#else
+THC_API struct HipRandStateMtgp32* THCRandom_generatorStates(struct THCState* state);
+#endif
 #endif

@@ -3,6 +3,7 @@
 #else
 
 
+
 THC_API void
 THCTensor_(maskedFill)(THCState* state,
                        THCTensor *tensor, THCudaByteTensor *mask, real value)
@@ -17,7 +18,7 @@ THCTensor_(maskedFill)(THCState* state,
     THArgCheck(false, 2, CUTORCH_DIM_WARNING);
   }
 
-  THCudaCheck(cudaGetLastError());
+  THCudaCheck(hipGetLastError());
 }
 
 THC_API void
@@ -68,18 +69,30 @@ THCTensor_(maskedCopy)(THCState* state,
   THCudaLongTensor_resize(state, maskPrefixSum, maskSizes, NULL);
   THLongStorage_free(maskSizes);
 
+#ifdef THRUST_PATH
   thrust::device_ptr<long>
     maskData(THCudaLongTensor_data(state, maskLong));
   thrust::device_ptr<long>
     maskPrefixSumData(THCudaLongTensor_data(state, maskPrefixSum));
 
   thrust::exclusive_scan(
-#if CUDA_VERSION >= 7000
-    thrust::cuda::par.on(THCState_getCurrentStream(state)),
-#endif
+    #if CUDA_VERSION >= 7000
+        thrust::cuda::par.on(THCState_getCurrentStream(state)),
+    #endif
     maskData,
     maskData + THCudaLongTensor_nElement(state, maskLong),
     maskPrefixSumData);
+#else
+    auto maskData = bolt::amp::make_ubiquitous_iterator(
+        THCudaLongTensor_data(state, maskLong));
+    auto maskPrefixSumData = bolt::amp::make_ubiquitous_iterator(
+        THCudaLongTensor_data(state, maskPrefixSum));
+
+    bolt::amp::exclusive_scan(
+        maskData,
+        maskData + THCudaLongTensor_nElement(state, maskLong),
+        maskPrefixSumData);
+#endif
 
   // We are getting elements from `src` based on an offset from
   // `maskPrefixSum`, so that should be made contiguous too
@@ -87,17 +100,19 @@ THCTensor_(maskedCopy)(THCState* state,
 
   // update `tensor` where `mask` == 1 but pull from `src` at
   // maskPrefixSum
-  bool status = THC_pointwiseApply3(
+
+  bool status = false;
+  TensorMaskedCopyOp<real, unsigned char, long> maskedCopyOp(THCTensor_(data)(state, contigSrc));
+  status = THC_pointwiseApply3(
     state, tensor, mask, maskPrefixSum,
-    TensorMaskedCopyOp<real, unsigned char, long>(
-      THCTensor_(data)(state, contigSrc)));
+    maskedCopyOp);
 
   THCTensor_(free)(state, contigSrc);
   THCudaLongTensor_free(state, maskLong);
   THCudaLongTensor_free(state, maskPrefixSum);
 
   THArgCheck(status, 2, CUTORCH_DIM_WARNING);
-  THCudaCheck(cudaGetLastError());
+  THCudaCheck(hipGetLastError());
 }
 
 THC_API void
@@ -142,6 +157,7 @@ THCTensor_(maskedSelect)(THCState* state,
   THCudaLongTensor_resize(state, maskPrefixSum, maskSizes, NULL);
   THLongStorage_free(maskSizes);
 
+#ifdef THRUST_PATH
   thrust::device_ptr<long>
     maskData(THCudaLongTensor_data(state, maskLong));
   thrust::device_ptr<long>
@@ -154,9 +170,20 @@ THCTensor_(maskedSelect)(THCState* state,
     maskData,
     maskData + THCudaLongTensor_nElement(state, maskLong),
     maskPrefixSumData);
+#else
+    auto maskData = bolt::amp::make_ubiquitous_iterator(
+        THCudaLongTensor_data(state, maskLong));
+    auto maskPrefixSumData = bolt::amp::make_ubiquitous_iterator(
+        THCudaLongTensor_data(state, maskPrefixSum));
+    bolt::amp::exclusive_scan(
+        maskData,
+        maskData + THCudaLongTensor_nElement(state, maskLong),
+        maskPrefixSumData);
+#endif
 
+ bool status = false;
   // Then copy over the masked elements at their desired output index
-  bool status = THC_pointwiseApply3(
+  status = THC_pointwiseApply3(
     state, mask, maskPrefixSum,
     src, TensorMaskedSelectOp<real, unsigned char, long>(
       THCTensor_(data)(state, tensor)));
@@ -171,7 +198,7 @@ THCTensor_(maskedSelect)(THCState* state,
   }
 
   THArgCheck(status, 2, CUTORCH_DIM_WARNING);
-  THCudaCheck(cudaGetLastError());
+  THCudaCheck(hipGetLastError());
 }
 
 // FIXME: remove now that we have THCudaByteTensor?

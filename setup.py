@@ -10,8 +10,11 @@ import sys
 import os
 
 # TODO: make this more robust
-WITH_CUDA = os.path.exists('/Developer/NVIDIA/CUDA-7.5/include') or os.path.exists('/usr/local/cuda/include')
-WITH_CUDNN = WITH_CUDA
+#WITH_CUDA = os.path.exists('/Developer/NVIDIA/CUDA-7.5/include') or os.path.exists('/usr/local/cuda/include')
+WITH_CUDA = True
+#WITH_CUDNN = WITH_CUDA
+WITH_CUDNN = False
+WITH_HIP = True
 DEBUG = False
 
 ################################################################################
@@ -87,9 +90,10 @@ class build_ext(setuptools.command.build_ext.build_ext):
             BoolOption(), THPPlugin(), AutoGPU(condition='IS_CUDA'),
             ArgcountSortPlugin(), KwargsPlugin(),
         ])
-        cwrap('torch/csrc/cudnn/cuDNN.cwrap', plugins=[
-            CuDNNPlugin(), NullableArguments()
-        ])
+        if WITH_CUDNN:
+            cwrap('torch/csrc/cudnn/cuDNN.cwrap', plugins=[
+                CuDNNPlugin(), NullableArguments()
+            ])
         # It's an old-style class in Python 2.7...
         setuptools.command.build_ext.build_ext.run(self)
 
@@ -175,7 +179,35 @@ try:
 except ImportError:
     pass
 
-if WITH_CUDA:
+if WITH_HIP:
+    hip_path = '/opt/rocm/hip/'
+    hip_include_path = '/opt/rocm/hip/include'
+    hip_lib_path = '/opt/rocm/hip/lib'
+    extra_compile_args.append('-D__HIP_PLATFORM_HCC__')
+
+    os.environ["CC"] = 'hipcc'
+    os.environ["CXX"] = 'hipcc'
+
+    include_dirs.append(hip_include_path)
+    include_dirs.append('/opt/rocm/hcc/include')
+    include_dirs.append('/opt/rocm/hcblas/include')
+    #include_dirs.append("/home/patrick/")
+    extra_link_args.append('-L' + hip_lib_path)
+    extra_link_args.append('-Wl,-rpath,' + hip_lib_path)
+    extra_link_args.append('')
+    extra_compile_args += ['-DWITH_CUDA']
+    main_libraries += ['THC']
+    main_sources += [
+        "torch/csrc/cuda/Module.cpp",
+        "torch/csrc/cuda/Storage.cpp",
+        "torch/csrc/cuda/Stream.cpp",
+        "torch/csrc/cuda/Tensor.cpp",
+        "torch/csrc/cuda/AutoGPU.cpp",
+        "torch/csrc/cuda/utils.cpp",
+        "torch/csrc/cuda/serialization.cpp",
+    ]
+
+elif WITH_CUDA:
     if platform.system() == 'Darwin':
         cuda_path = '/Developer/NVIDIA/CUDA-7.5'
         cuda_include_path = cuda_path + '/include'
@@ -265,6 +297,7 @@ if WITH_CUDA:
         extra_link_args=extra_link_args + [make_relative_rpath('../lib')]
     )
     extensions.append(THCUNN)
+
 
 setup(name="torch", version="0.1",
     ext_modules=extensions,

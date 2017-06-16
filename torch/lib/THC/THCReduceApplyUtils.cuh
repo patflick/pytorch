@@ -1,7 +1,9 @@
+#include "hip/hip_runtime.h"
 #ifndef THC_REDUCE_APPLY_UTILS_INC
 #define THC_REDUCE_APPLY_UTILS_INC
 
 #include <cuda.h>
+#include "hip/hip_runtime.h"
 #include <assert.h>
 #include "THCGeneral.h"
 #include "THCTensor.h"
@@ -14,12 +16,12 @@ enum TensorArgType { ReadWrite, ReadOnly };
 
 template <typename IndexType>
 __device__ __forceinline__ IndexType getLinearBlockId() {
-  return blockIdx.z * gridDim.y * gridDim.x +
-    blockIdx.y * gridDim.x +
-    blockIdx.x;
+  return hipBlockIdx_z * hipGridDim_y * hipGridDim_x +
+    hipBlockIdx_y * hipGridDim_x +
+    hipBlockIdx_x;
 }
 
-// Block-wide reduction in shared memory helper; only threadIdx.x == 0 will
+// Block-wide reduction in shared memory helper; only hipThreadIdx_x == 0 will
 // return the reduced value
 template <typename T, typename ReduceOp>
 __device__ T reduceBlock(T* smem,
@@ -31,27 +33,27 @@ __device__ T reduceBlock(T* smem,
     return init;
   }
 
-  if (threadIdx.x < numVals) {
-    smem[threadIdx.x] = threadVal;
+  if (hipThreadIdx_x < numVals) {
+    smem[hipThreadIdx_x] = threadVal;
   }
 
   // First warp will perform reductions across warps
   __syncthreads();
-  if ((threadIdx.x / warpSize) == 0) {
-    T r = threadIdx.x < numVals ? smem[threadIdx.x] : init;
+  if ((hipThreadIdx_x / warpSize) == 0) {
+    T r = hipThreadIdx_x < numVals ? smem[hipThreadIdx_x] : init;
 
-    for (int i = warpSize + threadIdx.x; i < numVals; i += warpSize) {
+    for (int i = warpSize + hipThreadIdx_x; i < numVals; i += warpSize) {
       r = reduceOp(r, smem[i]);
     }
 
-    smem[threadIdx.x] = r;
+    smem[hipThreadIdx_x] = r;
   }
 
   // First thread will perform reductions across the block
   __syncthreads();
 
   T r = init;
-  if (threadIdx.x == 0) {
+  if (hipThreadIdx_x == 0) {
     r = smem[0];
 
     int numLanesParticipating = min(numVals, warpSize);

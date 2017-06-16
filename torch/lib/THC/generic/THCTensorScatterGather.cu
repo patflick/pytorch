@@ -2,10 +2,18 @@
 #define THC_GENERIC_FILE "generic/THCTensorScatterGather.cu"
 #else
 
-#define RUN(TYPE, DIMS, REAL)                                           \
-  THCudaTensor_gatherKernel<TYPE, REAL, DIMS>                                \
-  <<<grid, block, 0, THCState_getCurrentStream(state)>>>(               \
-    tensorInfo, srcInfo, indexInfo, dim, (TYPE)totalElements);
+#define RUN(TYPE, DIMS, REAL)\
+  hipLaunchKernelGGL(\
+    (THCudaTensor_gatherKernel<TYPE, REAL, DIMS>),\
+    grid,\
+    block,\
+    0,\
+    THCState_getCurrentStream(state),\
+    make_magic_wrapper(tensorInfo),\
+    make_magic_wrapper(srcInfo),\
+    make_magic_wrapper(indexInfo),\
+    dim,\
+    (TYPE)totalElements);
 
 void THCTensor_(gather)(THCState* state, THCTensor *tensor,
                          THCTensor *src, int dim, THCudaLongTensor *index) {
@@ -59,19 +67,19 @@ void THCTensor_(gather)(THCState* state, THCTensor *tensor,
     switch (indexInfo.dims) {
       case 1:
         RUN(unsigned int, 1, real);
-        THCudaCheck(cudaGetLastError());
+        THCudaCheck(hipGetLastError());
         break;
       case 2:
         RUN(unsigned int, 2, real);
-        THCudaCheck(cudaGetLastError());
+        THCudaCheck(hipGetLastError());
         break;
       case 3:
         RUN(unsigned int, 3, real);
-        THCudaCheck(cudaGetLastError());
+        THCudaCheck(hipGetLastError());
         break;
       default:
         RUN(unsigned int, -1, real);
-        THCudaCheck(cudaGetLastError());
+        THCudaCheck(hipGetLastError());
         break;
     }
   } else {
@@ -82,7 +90,7 @@ void THCTensor_(gather)(THCState* state, THCTensor *tensor,
     TensorInfo<long, unsigned long> indexInfo =
       getTensorInfo<THCudaLongTensor, unsigned long>(state, index);
     RUN(unsigned long, -1, real);
-    THCudaCheck(cudaGetLastError());
+    THCudaCheck(hipGetLastError());
   }
 
   if (oldTensor) {
@@ -90,16 +98,24 @@ void THCTensor_(gather)(THCState* state, THCTensor *tensor,
     THCTensor_(free)(state, tensor);
     tensor = oldTensor;
   }
-  THCudaCheck(cudaGetLastError());
+  THCudaCheck(hipGetLastError());
 }
 
 #undef RUN
 
 
-#define RUN(TYPE, DIMS, REAL)                                           \
-  THCudaTensor_scatterKernel<TYPE, REAL, DIMS>                               \
-  <<<grid, block, 0, THCState_getCurrentStream(state)>>>(               \
-    tensorInfo, srcInfo, indexInfo, dim, (TYPE)totalElements);
+#define RUN(TYPE, DIMS, REAL)\
+  hipLaunchKernelGGL(\
+    (THCudaTensor_scatterKernel<TYPE, REAL, DIMS>),\
+    grid,\
+    block,\
+    0,\
+    THCState_getCurrentStream(state),\
+    make_magic_wrapper(tensorInfo),\
+    make_magic_wrapper(srcInfo),\
+    make_magic_wrapper(indexInfo),\
+    dim,\
+    (TYPE)totalElements);
 
 void THCTensor_(scatter)(THCState* state, THCTensor *tensor, int dim, THCudaLongTensor *index, THCTensor *src) {
   THAssert(THCTensor_(checkGPU)(state, 2, tensor, src));
@@ -169,7 +185,6 @@ void THCTensor_(scatter)(THCState* state, THCTensor *tensor, int dim, THCudaLong
       getTensorInfo<THCTensor, unsigned long>(state, src);
     TensorInfo<long, unsigned long> indexInfo =
       getTensorInfo<THCudaLongTensor, unsigned long>(state, index);
-
     RUN(unsigned long, -1, real)
   }
 
@@ -178,15 +193,23 @@ void THCTensor_(scatter)(THCState* state, THCTensor *tensor, int dim, THCudaLong
     THCTensor_(free)(state, tensor);
     tensor = oldTensor;
   }
-  THCudaCheck(cudaGetLastError());
+  THCudaCheck(hipGetLastError());
 }
 
 #undef RUN
 
-#define RUN(TYPE, DIMS, REAL)                                           \
-  THCudaTensor_scatterFillKernel<TYPE, REAL, DIMS>                           \
-      <<<grid, block, 0, THCState_getCurrentStream(state)>>>(      \
-          tensorInfo, indexInfo, value, dim, (TYPE)totalElements);
+#define RUN(TYPE, DIMS, REAL)\
+  hipLaunchKernelGGL(\
+    (THCudaTensor_scatterFillKernel<TYPE, REAL, DIMS>),\
+    grid,\
+    block,\
+    0,\
+    THCState_getCurrentStream(state),\
+    make_magic_wrapper(tensorInfo),\
+    make_magic_wrapper(indexInfo),\
+    value,\
+    dim,\
+    (TYPE)totalElements);
 
 void
 THCTensor_(scatterFill)(THCState* state, THCTensor *tensor,
@@ -249,7 +272,6 @@ THCTensor_(scatterFill)(THCState* state, THCTensor *tensor,
       getTensorInfo<THCTensor, unsigned long>(state, tensor);
     TensorInfo<long, unsigned long> indexInfo =
       getTensorInfo<THCudaLongTensor, unsigned long>(state, index);
-
     RUN(unsigned long, -1, real);
   }
 
@@ -258,7 +280,7 @@ THCTensor_(scatterFill)(THCState* state, THCTensor *tensor,
     THCTensor_(free)(state, tensor);
     tensor = oldTensor;
   }
-  THCudaCheck(cudaGetLastError());
+  THCudaCheck(hipGetLastError());
 }
 
 #undef RUN

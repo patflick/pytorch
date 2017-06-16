@@ -18,10 +18,14 @@
 // CUDA kernel argument that defines tensor layout
 template <typename T, typename IndexType>
 struct TensorInfo {
+  // constructor
   TensorInfo(T* p,
              int dim,
-             IndexType sz[MAX_CUTORCH_DIMS],
-             IndexType st[MAX_CUTORCH_DIMS]);
+             const IndexType (&sz)[MAX_CUTORCH_DIMS],
+             const IndexType (&st)[MAX_CUTORCH_DIMS]);
+
+  // Destructor
+  //~TensorInfo(void);
 
   // Set the size of the given dimension to 1, as if it were a
   // reduction dim (allows you to calculate offsets of the reduction
@@ -46,14 +50,18 @@ struct TensorInfo {
   T* data;
   IndexType sizes[MAX_CUTORCH_DIMS];
   IndexType strides[MAX_CUTORCH_DIMS];
+  //IndexType* dSizes;
+  //IndexType* dStrides;
   int dims;
 };
 
 template <typename T, typename IndexType>
-TensorInfo<T, IndexType>::TensorInfo(T* p,
-                                     int dim,
-                                     IndexType sz[MAX_CUTORCH_DIMS],
-                                     IndexType st[MAX_CUTORCH_DIMS]) {
+TensorInfo<T, IndexType>::TensorInfo(
+    T* p,
+    int dim,
+    const IndexType (&sz)[MAX_CUTORCH_DIMS],
+    const IndexType (&st)[MAX_CUTORCH_DIMS])
+{
   data = p;
   dims = dim;
   assert(dims > 0 && dims < MAX_CUTORCH_DIMS);
@@ -65,15 +73,15 @@ TensorInfo<T, IndexType>::TensorInfo(T* p,
 }
 
 template <typename T, typename IndexType>
-void
-TensorInfo<T, IndexType>::reduceDim(int dim) {
+void TensorInfo<T, IndexType>::reduceDim(int dim)
+{
   assert(dim < dims && dim >= 0);
   sizes[dim] = 1;
 }
 
 template <typename T, typename IndexType>
-int
-TensorInfo<T, IndexType>::collapseDims(int excludeDim) {
+int TensorInfo<T, IndexType>::collapseDims(int excludeDim)
+{
   // Find the innermost dimension not of size 1, since dimensions of size 1 are
   // collapsible.
   int firstNonOneDim = -1;
@@ -275,5 +283,35 @@ struct IndexToOffset<T, IndexType, -1> {
     return offset;
   }
 };
+
+#if defined(__HIP_PLATFORM_HCC__)
+  #include <hip/hip_hcc.h>
+
+  template<typename T>
+    class Magic_wrapper {
+        // TODO: this is temporary, and it has the unpleasant property of
+        //       leaking memory.
+        T* p_ = nullptr;
+    public:
+        Magic_wrapper() = default;
+        explicit
+        Magic_wrapper(const T& x)
+        {
+            hipHostMalloc(&p_, sizeof(T)); new (p_) T{x};
+        }
+
+        operator const T&() const [[hc]] { return p_[0]; }
+    };
+
+  template<typename T>
+  Magic_wrapper<T> make_magic_wrapper(const T& x)
+  {
+    return Magic_wrapper<T>{x};
+  }
+  #define reference_to_const(...) __VA_ARGS__ const&
+#else
+  #define make_magic_wrapper(x) x
+  #define reference_to_const(...) __VA_ARGS__
+#endif
 
 #endif // THC_TENSOR_INFO_INC

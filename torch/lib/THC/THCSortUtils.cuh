@@ -5,33 +5,45 @@
 #include "THCTensorTypeUtils.cuh"
 #include "THCNumerics.cuh"
 
+#include <hip/hip_runtime.h>
+
 // Collection of kernel sort routines
 template <typename T>
 struct LTComp {
-  __device__ inline bool operator()(const T& a, const T& b) const {
+  __device__
+  bool operator()(const T& a, const T& b) const {
     return THCNumerics<T>::lt(a, b);
   }
 };
 
 template <typename T>
 struct GTComp {
-  __device__ inline bool operator()(const T& a, const T& b) const {
+  __device__
+  bool operator()(const T& a, const T& b) const {
     return THCNumerics<T>::gt(a, b);
   }
 };
 
 template <typename T>
-__device__ inline void swapVars(T& t1, T& t2) {
+__device__
+inline
+void swapVars(T& t1, T& t2) {
   T tmp = t1;
   t1 = t2;
   t2 = tmp;
 }
 
 template <typename Comparator, typename K, typename V>
-__device__ inline void bitonicSwap(K& kA, V& vA, bool& validA,
-                                   K& kB, V& vB, bool& validB,
-                                   bool dir,
-                                   const Comparator& comp) {
+__device__
+inline
+void bitonicSwap(K& kA,
+                 V& vA,
+                 bool& validA,
+                 K& kB,
+                 V& vB,
+                 bool& validB,
+                 bool dir,
+                 Comparator comp) {
   // Invalid entries always sort to the end
   bool swap = (comp(kA, kB) && validA) || !validB;
   if (swap == dir) {
@@ -41,44 +53,53 @@ __device__ inline void bitonicSwap(K& kA, V& vA, bool& validA,
   }
 };
 
-template <typename Comparator, typename K, typename V,
-          typename IndexType, int Power2SortSize>
-__device__ inline void bitonicSort(K keys[Power2SortSize],
-                                   V values[Power2SortSize],
-                                   bool valid[Power2SortSize],
-                                   const Comparator& comp) {
-#pragma unroll
+template <typename K, typename V, int Power2SortSize, typename Comparator>
+__device__
+inline
+void bitonicSort(K (&keys)[Power2SortSize],
+                 V (&values)[Power2SortSize],
+                 bool (&valid)[Power2SortSize],
+                 Comparator comp)
+{
+  #pragma unroll
   for (unsigned int size = 2; size < Power2SortSize; size *= 2) {
-    bool flag = ((threadIdx.x & (size / 2)) != 0);
+    bool flag = ((hipThreadIdx_x & (size / 2)) != 0);
 
-#pragma unroll
+    #pragma unroll
     for (unsigned int stride = size / 2; stride > 0; stride /= 2) {
-
       // Single warp per slice is completely synchronous
       if (Power2SortSize > 64) {
         __syncthreads();
       }
 
-      unsigned int pos = 2 * threadIdx.x - (threadIdx.x & (stride - 1));
-      bitonicSwap<Comparator, K, V>(
-        keys[pos], values[pos], valid[pos],
-        keys[pos + stride], values[pos + stride], valid[pos + stride],
-        flag, comp);
+      unsigned int pos = 2 * hipThreadIdx_x - (hipThreadIdx_x & (stride - 1));
+      bitonicSwap(keys[pos],
+                  values[pos],
+                  valid[pos],
+                  keys[pos + stride],
+                  values[pos + stride],
+                  valid[pos + stride],
+                  flag,
+                  comp);
     }
   }
 
-#pragma unroll
+  #pragma unroll
   for (unsigned int stride = Power2SortSize / 2; stride > 0; stride /= 2) {
     // Single warp per slice is completely synchronous
     if (Power2SortSize > 64) {
       __syncthreads();
     }
 
-    unsigned int pos = 2 * threadIdx.x - (threadIdx.x & (stride - 1));
-    bitonicSwap<Comparator, K, V>(
-      keys[pos], values[pos], valid[pos],
-      keys[pos + stride], values[pos + stride], valid[pos + stride],
-      false, comp);
+    unsigned int pos = 2 * hipThreadIdx_x - (hipThreadIdx_x & (stride - 1));
+    bitonicSwap(keys[pos],
+                values[pos],
+                valid[pos],
+                keys[pos + stride],
+                values[pos + stride],
+                valid[pos + stride],
+                false,
+                comp);
   }
 
   // Single warp per slice is completely synchronous
@@ -89,17 +110,24 @@ __device__ inline void bitonicSort(K keys[Power2SortSize],
 
 // Sorts (key, value) pairs (in different tensors) in-place; i.e.,
 // modifies the input `keys` and `values`
-template <typename K, typename V,
-          int KeyDims, int ValueDims,
-          typename Comparator, typename IndexType, int Power2SortSize>
-__global__ void
-bitonicSortKVInPlace(TensorInfo<K, IndexType> keys,
+template <typename K,
+          typename V,
+          int KeyDims,
+          int ValueDims,
+          typename Comparator,
+          typename IndexType,
+          int Power2SortSize>
+__global__
+inline
+void
+bitonicSortKVInPlace(reference_to_const(TensorInfo<K, IndexType>) keys,
                      IndexType keySlices,
                      IndexType keySliceSize,
                      IndexType keySliceStride,
-                     TensorInfo<V, IndexType> values,
+                     reference_to_const(TensorInfo<V, IndexType>) values,
                      IndexType valueSliceStride,
-                     const Comparator& comp) {
+                     Comparator comp)
+{
   // Find the slice of the tensor that we are sorting
   const IndexType linearIndex = getLinearBlockId<IndexType>();
   // Tiling the slices could have us be out of bounds, if there are a
@@ -123,8 +151,8 @@ bitonicSortKVInPlace(TensorInfo<K, IndexType> keys,
   } else {
     // Otherwise, each thread is responsible for loading and storing 2
     // elements. The sort size is guaranteed to be >= 2
-    const int elem1 = threadIdx.x;
-    const int elem2 = threadIdx.x + (Power2SortSize / 2);
+    const int elem1 = hipThreadIdx_x;
+    const int elem2 = hipThreadIdx_x + (Power2SortSize / 2);
 
     bool valid1 = (elem1 < keySliceSize);
     K k1 = valid1 ?
@@ -147,8 +175,7 @@ bitonicSortKVInPlace(TensorInfo<K, IndexType> keys,
     sharedValid[elem2] = valid2;
 
     // Sort!
-    bitonicSort<Comparator, K, V, IndexType, Power2SortSize>(
-      sharedKeys, sharedValues, sharedValid, comp);
+    bitonicSort(sharedKeys, sharedValues, sharedValid, comp);
 
     // elem1 and elem2 values might be out-of-range, if the data size we are
     // sorting is smaller than half the power2 size
@@ -169,3 +196,4 @@ bitonicSortKVInPlace(TensorInfo<K, IndexType> keys,
 }
 
 #endif // THC_SORT_UTILS_INC
+

@@ -3,10 +3,21 @@
 
 struct absupdateOutput_functor
 {
-  __device__ void operator()(float* output, const float* input) const
+  __host__ __device__
+  absupdateOutput_functor() = default;
+
+  __device__ 
+  void operator()(float* output, const float* input) const
   {
+#ifdef __HIP_PLATFORM_HCC__
+    *output = fabsf(*input);
+#else
     *output = abs(*input);
+#endif
   }
+
+   __host__ __device__
+   ~absupdateOutput_functor() {}
 };
 
 void THNN_CudaAbs_updateOutput(THCState *state, THCudaTensor *input, THCudaTensor *output)
@@ -22,6 +33,8 @@ struct absupdateGradInput_functor
   {
     *gradInput = *input < 0 ? - *gradOutput : *gradOutput;
   }
+  __device__ __host__
+  ~absupdateGradInput_functor() {}
 };
 
 void THNN_CudaAbs_updateGradInput(THCState *state, THCudaTensor *input, THCudaTensor *gradOutput, THCudaTensor *gradInput)

@@ -1,6 +1,15 @@
 #ifndef THC_GENERIC_FILE
-#define THC_GENERIC_FILE "generic/THCTensorSort.cu"
+    #define THC_GENERIC_FILE "generic/THCTensorSort.cu"
 #else
+    #ifdef THRUST_PATH
+        // TODO: any includes needed here?
+    #else
+        #include <bolt/amp/copy.h>
+        #include <bolt/amp/for_each.h>
+        #include <bolt/amp/iterator/counting_iterator.h>
+        #include <bolt/amp/iterator/ubiquitous_iterator.h>
+        #include <bolt/amp/stablesort_by_key.h>
+    #endif
 
 // In alignment with default sort on a c++ map, this function
 // will permute key and value tensors identically, and
@@ -45,66 +54,74 @@ THC_API void THCTensor_(sortKeyValueInplace)(THCState* state,
     THError("Slice to sort is too large");
   }
 
-#define HANDLE_CASE(TYPE, A, SIZE)                                      \
-  do {                                                                  \
-    int blockSize = SIZE / 2;                                           \
-    if (blockSize < 1) {                                                \
-      blockSize = 1;                                                    \
-    }                                                                   \
-                                                                        \
-    dim3 block(blockSize);                                              \
-                                                                        \
-    if (dir) {                                                          \
-      bitonicSortKVInPlace<real, long, A, -1, GTComp<real>, TYPE, SIZE> \
-        <<<grid, block, 0, THCState_getCurrentStream(state)>>>(         \
-          keyInfo,                                                      \
-          keySlices,                                                    \
-          (TYPE) keySliceSize,                                          \
-          (TYPE) keyInfo.strides[collapseKeyDim],                       \
-          valueInfo,                                                    \
-          (TYPE) valueInfo.strides[collapseValueDim],                   \
-          GTComp<real>());                                              \
-    } else {                                                            \
-      bitonicSortKVInPlace<real, long, A, -1, LTComp<real>, TYPE, SIZE> \
-        <<<grid, block, 0, THCState_getCurrentStream(state)>>>(         \
-          keyInfo,                                                      \
-          keySlices,                                                    \
-          (TYPE) keySliceSize,                                          \
-          (TYPE) keyInfo.strides[collapseKeyDim],                       \
-          valueInfo,                                                    \
-          (TYPE) valueInfo.strides[collapseValueDim],                   \
-          LTComp<real>());                                              \
-    }                                                                   \
+#define HANDLE_CASE(TYPE, A, SIZE)\
+  do {\
+    int blockSize = SIZE / 2;\
+    if (blockSize < 1) {\
+      blockSize = 1;\
+    }\
+    \
+    dim3 block(blockSize);\
+    \
+    if (dir) {\
+      hipLaunchKernelGGL(\
+        (bitonicSortKVInPlace<real, long, A, -1, GTComp<real>, TYPE, SIZE>),\
+        grid,\
+        block,\
+        0,\
+        THCState_getCurrentStream(state),\
+        make_magic_wrapper(keyInfo),\
+        keySlices,\
+        (TYPE) keySliceSize,\
+        (TYPE) keyInfo.strides[collapseKeyDim],\
+        make_magic_wrapper(valueInfo),\
+        (TYPE) valueInfo.strides[collapseValueDim],\
+        GTComp<real>());\
+    } else {\
+     hipLaunchKernelGGL(\
+        (bitonicSortKVInPlace<real, long, A, -1, LTComp<real>, TYPE, SIZE>),\
+        grid,\
+        block,\
+        0,\
+        THCState_getCurrentStream(state),\
+        make_magic_wrapper(keyInfo),\
+        keySlices,\
+        (TYPE) keySliceSize,\
+        (TYPE) keyInfo.strides[collapseKeyDim],\
+        make_magic_wrapper(valueInfo),\
+        (TYPE) valueInfo.strides[collapseValueDim],\
+        LTComp<real>());\
+    }\
   } while (0)
 
-#define HANDLE_SORT_CASE(TYPE, A)                       \
-  {                                                     \
-    switch (ceilPowerOf2) {                             \
-      case 2048:                                        \
-      HANDLE_CASE(TYPE, A, 2048);                       \
-      break;                                            \
-      case 1024:                                        \
-      case 512:                                         \
-      case 256:                                         \
-      HANDLE_CASE(TYPE, A, 1024);                       \
-      break;                                            \
-      case 128:                                         \
-      case 64:                                          \
-      HANDLE_CASE(TYPE, A, 128);                        \
-      break;                                            \
-      case 32:                                          \
-      case 16:                                          \
-      case 8:                                           \
-      case 4:                                           \
-      case 2:                                           \
-      HANDLE_CASE(TYPE, A, 32);                         \
-      break;                                            \
-      case 1:                                           \
-      /* Nothing to do, data already sorted */          \
-      break;                                            \
-      default:                                          \
-      assert(false);                                    \
-    }                                                   \
+#define HANDLE_SORT_CASE(TYPE, A)\
+  {\
+    switch (ceilPowerOf2) {\
+      case 2048:\
+      HANDLE_CASE(TYPE, A, 2048);\
+      break;\
+      case 1024:\
+      case 512:\
+      case 256:\
+      HANDLE_CASE(TYPE, A, 1024);\
+      break;\
+      case 128:\
+      case 64:\
+      HANDLE_CASE(TYPE, A, 128);\
+      break;\
+      case 32:\
+      case 16:\
+      case 8:\
+      case 4:\
+      case 2:\
+      HANDLE_CASE(TYPE, A, 32);\
+      break;\
+      case 1:\
+      /* Nothing to do, data already sorted */\
+      break;\
+      default:\
+      assert(false);\
+    }\
   }
 
   // The constructed key/value tensor info is used to select the slice
@@ -150,19 +167,22 @@ THC_API void THCTensor_(sortKeyValueInplace)(THCState* state,
 #undef HANDLE_SORT_CASE
 #undef HANDLE_A_CASE
 
-  THCudaCheck(cudaGetLastError());
+  THCudaCheck(hipGetLastError());
 }
 
-void sortViaThrust(THCState* state,
-                   THCTensor* sorted,
-                   THCudaLongTensor* indices,
-                   THCTensor* input,
-                   int dim, bool dir) {
+void sortViaThrust(
+    THCState* state,
+    THCTensor* sorted,
+    THCudaLongTensor* indices,
+    THCTensor* input,
+    int dim,
+    bool dir)
+{
   long nDims = THCTensor_(nDimension)(state, input);
 
   ptrdiff_t totalElements = THCTensor_(nElement)(state, input);
   long sliceSize = THCTensor_(size)(state, input, dim);
-  long sliceStride = THCTensor_(stride)(state, input, dim);
+  //long sliceStride = THCTensor_(stride)(state, input, dim);
 
   // We perform a vectorized segmented sort in Thrust.
   // Say we are sorting a (2, 3) tensor. We have in flattened form:
@@ -209,59 +229,95 @@ void sortViaThrust(THCState* state,
   THCTensor_(free)(state, trKeys);
   THCudaLongTensor_free(state, trIndices);
 
+#if defined(THRUST_PATH)
   thrust::device_ptr<real> keyIter(THCTensor_(data)(state, trContigKey));
-
+#else
+  auto keyIter =
+    bolt::amp::make_ubiquitous_iterator(THCTensor_(data)(state, trContigKey));
+#endif
   // Since we are composing a global index across all segments rather
   // than a per-segment index, we treat the memory as int so we don't
   // have problems sorting slices < 2^24 but where the entire tensor
   // has more than 2^24 elements
+#if defined(THRUST_PATH)
   thrust::device_ptr<long>
     indexIter((long*) THCudaLongTensor_data(state, trContigIndices));
-
+#else
+  auto indexIter = bolt::amp::make_ubiquitous_iterator(
+    THCudaLongTensor_data(state, trContigIndices));
+#endif
   // Fill the indices with a global index across all slices
+#if defined(THRUST_PATH)
   thrust::counting_iterator<long> countIter(0);
 
   thrust::copy(
-#if CUDA_VERSION >= 7000
-    thrust::cuda::par.on(THCState_getCurrentStream(state)),
-#endif
+    #if CUDA_VERSION >= 7000
+        thrust::cuda::par.on(THCState_getCurrentStream(state)),
+    #endif
     countIter, countIter + totalElements, indexIter);
+#else
+  bolt::amp::counting_iterator<long> countIter{0};
+
+  bolt::amp::copy(countIter, countIter + totalElements, indexIter);
+#endif
 
   // First, we sort globally (across all slices) according to key
   // (the values we're sorting)
   if (dir) {
-    thrust::stable_sort_by_key(
-#if CUDA_VERSION >= 7000
-      thrust::cuda::par.on(THCState_getCurrentStream(state)),
-#endif
-      keyIter, keyIter + totalElements, indexIter, ThrustGTOp<real>());
+    #if defined(THRUST_PATH)
+      thrust::stable_sort_by_key(
+        #if CUDA_VERSION >= 7000
+          thrust::cuda::par.on(THCState_getCurrentStream(state)),
+        #endif
+          keyIter, keyIter + totalElements, indexIter, ThrustGTOp<real>());
+    #else
+      bolt::amp::stable_sort_by_key(
+        keyIter, keyIter + totalElements, indexIter, ThrustGTOp<real>());
+    #endif
   } else {
+  #if defined(THRUST_PATH)
     thrust::stable_sort_by_key(
-#if CUDA_VERSION >= 7000
-      thrust::cuda::par.on(THCState_getCurrentStream(state)),
-#endif
+      #if CUDA_VERSION >= 7000
+        thrust::cuda::par.on(THCState_getCurrentStream(state)),
+      #endif
+        keyIter, keyIter + totalElements, indexIter, ThrustLTOp<real>());
+  #else
+    bolt::amp::stable_sort_by_key(
       keyIter, keyIter + totalElements, indexIter, ThrustLTOp<real>());
+#endif
   }
 
   // Then, re-sort according to slice that each index is
   // in. This completes the segment sort in Thrust, since we're
   // stably sorting here, preserving the relative order of values
   // per each slice
-  thrust::stable_sort_by_key(
-#if CUDA_VERSION >= 7000
-    thrust::cuda::par.on(THCState_getCurrentStream(state)),
-#endif
-    indexIter, indexIter + totalElements, keyIter,
-    SliceComp(sliceSize));
+  #if defined(THRUST_PATH)
+    thrust::stable_sort_by_key(
+      #if CUDA_VERSION >= 7000
+        thrust::cuda::par.on(THCState_getCurrentStream(state)),
+      #endif
+      indexIter, indexIter + totalElements, keyIter, SliceComp(sliceSize));
+  #else
+    bolt::amp::stable_sort_by_key(
+      indexIter, indexIter + totalElements, keyIter, SliceComp{sliceSize});
+  #endif
 
   // Translate the global integer 0-based index to a per-slice real
   // Lua index
-  thrust::for_each(
-#if CUDA_VERSION >= 7000
-    thrust::cuda::par.on(THCState_getCurrentStream(state)),
+  #if defined(THRUST_PATH)
+    thrust::for_each(
+      #if CUDA_VERSION >= 7000
+        thrust::cuda::par.on(THCState_getCurrentStream(state)),
+      #endif
+      indexIter,
+      indexIter + totalElements,
+      GlobalIndexToPerSliceIndex(sliceSize));
+#else
+  bolt::amp::for_each(
+    indexIter,
+    indexIter + totalElements,
+    GlobalIndexToPerSliceIndex{sliceSize});
 #endif
-    indexIter, indexIter + totalElements,
-    GlobalIndexToPerSliceIndex(sliceSize));
 
   // Reverse the transposition as needed
   if (dim != nDims - 1) {
@@ -314,7 +370,7 @@ THC_API void THCTensor_(sort)(THCState* state,
     sortViaThrust(state, sorted, indices, input, dim, (bool) order);
   }
 
-  THCudaCheck(cudaGetLastError());
+  THCudaCheck(hipGetLastError());
 }
-
 #endif
+

@@ -20,16 +20,16 @@ int THCStorage_(elementSize)(THCState *state)
 void THCStorage_(set)(THCState *state, THCStorage *self, ptrdiff_t index, real value)
 {
   THArgCheck((index >= 0) && (index < self->size), 2, "index out of bounds");
-  THCudaCheck(cudaMemcpy(self->data + index, &value, sizeof(real),
-                         cudaMemcpyHostToDevice));
+  THCudaCheck(hipMemcpy(self->data + index, &value, sizeof(real),
+                         hipMemcpyHostToDevice));
 }
 
 real THCStorage_(get)(THCState *state, const THCStorage *self, ptrdiff_t index)
 {
   THArgCheck((index >= 0) && (index < self->size), 2, "index out of bounds");
   real value;
-  THCudaCheck(cudaMemcpy(&value, self->data + index, sizeof(real),
-                         cudaMemcpyDeviceToHost));
+  THCudaCheck(hipMemcpy(&value, self->data + index, sizeof(real),
+                         hipMemcpyDeviceToHost));
   return value;
 }
 
@@ -52,7 +52,7 @@ THCStorage* THCStorage_(newWithAllocator)(THCState *state, ptrdiff_t size,
 {
   THArgCheck(size >= 0, 2, "invalid size");
   int device;
-  THCudaCheck(cudaGetDevice(&device));
+  THCudaCheck(hipGetDevice(&device));
 
   THCStorage *storage = (THCStorage*)THAlloc(sizeof(THCStorage));
   memset(storage, 0, sizeof(THCStorage));
@@ -67,11 +67,13 @@ THCStorage* THCStorage_(newWithAllocator)(THCState *state, ptrdiff_t size,
   {
     // update heap *before* attempting malloc, to free space for the malloc
     THCHeapUpdate(state, size * sizeof(real));
-    cudaError_t err =
+    //hipError_t err = hipMalloc((void **)&(storage->data), size * sizeof(real));
+    hipError_t err =
       (*allocator->malloc)(allocatorContext, (void**)&(storage->data),
                            size * sizeof(real),
                            THCState_getCurrentStream(state));
-    if(err != cudaSuccess){
+
+    if(err != hipSuccess){
       THCHeapUpdate(state, -size * sizeof(real));
       free(storage);
     }
@@ -143,11 +145,11 @@ THCStorage* THCStorage_(newWithDataAndAllocator)(
   storage->allocatorContext = allocatorContext;
   int device;
   if (data) {
-    struct cudaPointerAttributes attr;
-    THCudaCheck(cudaPointerGetAttributes(&attr, data));
+    struct hipPointerAttribute_t attr;
+    THCudaCheck(hipPointerGetAttributes(&attr, data));
     device = attr.device;
   } else {
-    THCudaCheck(cudaGetDevice(&device));
+    THCudaCheck(hipGetDevice(&device));
   }
   storage->device = device;
   return storage;
@@ -180,6 +182,10 @@ void THCStorage_(free)(THCState *state, THCStorage *self)
       THCHeapUpdate(state, -self->size * sizeof(real));
       THCudaCheck(
         (*self->allocator->free)(self->allocatorContext, self->data));
+      /*if(self->data) {
+        THCudaCheck(hipFree(self->data));
+        self->data = NULL;
+      }*/
     }
     THFree(self);
   }

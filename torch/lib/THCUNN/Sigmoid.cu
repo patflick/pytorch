@@ -7,6 +7,9 @@ struct sigmoidupdateOutput_functor
   {
     *output = 1./(1.+ exp(-*input));
   }
+
+  __device__ __host__
+  ~sigmoidupdateOutput_functor() {}
 };
 
 void THNN_CudaSigmoid_updateOutput(THCState *state, THCudaTensor *input, THCudaTensor *output)
@@ -22,6 +25,9 @@ struct sigmoidupdateGradInput_functor
   {
     *gradInput = *gradOutput * (1.-*output) * (*output);
   }
+
+  __device__ __host__
+  ~sigmoidupdateGradInput_functor() {}
 };
 
 void THNN_CudaSigmoid_updateGradInput(THCState *state, THCudaTensor *input, THCudaTensor *gradOutput, THCudaTensor *gradInput, THCudaTensor *output)

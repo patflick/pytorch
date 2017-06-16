@@ -1,17 +1,51 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8 FATAL_ERROR)
 CMAKE_POLICY(VERSION 2.8)
 
-SET(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
+# HIP_PATH
+IF(NOT DEFINED $ENV{HIP_PATH})
+  SET(HIP_PATH /opt/rocm/hip)
+ELSE()
+  SET(HIP_PATH $ENV{HIP_PATH})
+ENDIF()
+
+# HIPBLAS_PATH
+IF(NOT DEFINED $ENV{HIPBLAS_PATH})
+  SET(HIPBLAS_PATH /opt/rocm/hcblas/)
+ELSE()
+  SET(HIPBLAS_PATH $ENV{HIPBLAS_PATH})
+ENDIF()
+
+
+
+SET(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH} "${HIP_PATH}/cmake")
+EXECUTE_PROCESS(COMMAND ${HIP_PATH}/bin/hipconfig -P OUTPUT_VARIABLE PLATFORM)
 
 IF(NOT Torch_FOUND)
   FIND_PACKAGE(Torch)
 ENDIF()
-IF(NOT CUDA_FOUND)
-  FIND_PACKAGE(CUDA 5.5 REQUIRED)
+IF (${PLATFORM} MATCHES "nvcc")
+  IF(NOT CUDA_FOUND)
+    FIND_PACKAGE(CUDA 5.5 REQUIRED)
+  ENDIF()
+  IF(NOT MAGMA_FOUND)
+    FIND_PACKAGE(MAGMA)
+  ENDIF()
+ENDIF() # PLATFORM MATCHES
+
+EXECUTE_PROCESS(
+  COMMAND ${HIP_PATH}/bin/hipconfig --cpp_config OUTPUT_VARIABLE HIP_CXX_FLAGS)
+
+# temoorary check with hipcc on AMD stack
+IF (${PLATFORM} MATCHES "hcc")
+  SET(CMAKE_CXX_COMPILER ${HIP_HIPCC_EXECUTABLE})
+
+  # FIXME properly include bolt and boost
+  include_directories(/home/patrick/cutorch_hip/external/bolt/include)
+  include_directories(/home/patrick/cutorch_hip/external/boost)
 ENDIF()
-IF(NOT MAGMA_FOUND)
-  FIND_PACKAGE(MAGMA)
-ENDIF()
+
+
+
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "4.9.3")
@@ -25,18 +59,26 @@ endif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "4.7" OR CMAKE_CXX_COMPILER_VERSION VERSION_EQUAL "4.7" )
     # add c++11 flag
-    set_source_files_properties(THCCachingAllocator.cpp PROPERTIES COMPILE_FLAGS -std=c++11)
+    set_property(SOURCE THCCachingAllocator.cpp APPEND PROPERTY COMPILE_FLAGS "-std=c++11")
   else()
     # add c++0x flag
-    set_source_files_properties(THCCachingAllocator.cpp PROPERTIES COMPILE_FLAGS -std=c++0x)
+    set_property(SOURCE THCCachingAllocator.cpp APPEND PROPERTY COMPILE_FLAGS "-std=c++0x")
   endif()
 else()
   SET(CMAKE_CXX_STANDARD 11)
 endif()
 
+FIND_PACKAGE(HIP 1.0 REQUIRED)
+IF(${PLATFORM} STREQUAL "nvcc")
+  FIND_PACKAGE(CUDA 6.5 REQUIRED)
+  FIND_PACKAGE(MAGMA)
+ENDIF()
 
 INCLUDE_DIRECTORIES(${CUDA_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES($ENV{HIP_THRUST_PATH})
+INCLUDE_DIRECTORIES(${HIPBLAS_PATH}/include)
 INCLUDE_DIRECTORIES("${CUDA_SDK_ROOT_DIR}/common/inc")
+LINK_DIRECTORIES("${HIP_PATH}/lib")
 
 IF(MAGMA_FOUND)
   INCLUDE_DIRECTORIES(${MAGMA_INCLUDE_DIR})
@@ -65,34 +107,22 @@ IF ($ENV{TH_BINARY_BUILD})
   SET(CMAKE_CXX_FLAGS "-static-libstdc++ ${CMAKE_CXX_FLAGS}")
 ENDIF()
 
-IF(APPLE)
-  IF(${CUDA_VERSION} LESS 6.0)
-    # work around for mac os x bug:
-    # http://stackoverflow.com/questions/16286588/cuda-5-0-cmake-and-make-failing-on-osx-10-8-3
-    if (NOT DEFINED CUDA_HOST_COMPILER AND CMAKE_C_COMPILER_ID STREQUAL "Clang" AND EXISTS /usr/bin/gcc)
-      set(CUDA_HOST_COMPILER /usr/bin/gcc CACHE FILEPATH "Host side compiler used by NVCC")
-      message(STATUS "Setting CMAKE_HOST_COMPILER to /usr/bin/gcc instead of ${CMAKE_C_COMPILER}.")
-    endif()
-
-    # bug on Apple
-    LINK_DIRECTORIES("/usr/local/cuda/lib/")
-  ELSEIF(${CUDA_VERSION} LESS 7.0)
-    SET(CUDA_HOST_COMPILER clang)
-    LIST(APPEND CUDA_NVCC_FLAGS "-Xcompiler -stdlib=libstdc++ -Xlinker -stdlib=libstdc++")
-    IF("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
-    ENDIF()
+IF(${PLATFORM} MATCHES "nvcc")
+  # Detect CUDA architecture and get best NVCC flags
+  IF(NOT COMMAND CUDA_SELECT_NVCC_ARCH_FLAGS)
+    INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/cmake/select_compute_arch.cmake)
   ENDIF()
-  # CUDA 7 supports clang and libc++ so no need to change anything
-ENDIF(APPLE)
+  LIST(APPEND CUDA_NVCC_FLAGS $ENV{TORCH_NVCC_FLAGS})
+  CUDA_SELECT_NVCC_ARCH_FLAGS(NVCC_FLAGS_EXTRA $ENV{TORCH_CUDA_ARCH_LIST})
+  LIST(APPEND CUDA_NVCC_FLAGS ${NVCC_FLAGS_EXTRA})
+  LIST(APPEND CUDA_NVCC_FLAGS "-lineinfo")
+ENDIF() #PLATFORM MATCHES
 
-# Detect CUDA architecture and get best NVCC flags
-IF(NOT COMMAND CUDA_SELECT_NVCC_ARCH_FLAGS)
-  INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/cmake/select_compute_arch.cmake)
-ENDIF()
-LIST(APPEND CUDA_NVCC_FLAGS $ENV{TORCH_NVCC_FLAGS})
-CUDA_SELECT_NVCC_ARCH_FLAGS(NVCC_FLAGS_EXTRA $ENV{TORCH_CUDA_ARCH_LIST})
-LIST(APPEND CUDA_NVCC_FLAGS ${NVCC_FLAGS_EXTRA})
+MESSAGE("TH path: ${TH_INCLUDE_PATH}")
+MESSAGE("THC lib install path: ${THC_INSTALL_LIB_SUBDIR}")
+MESSAGE("THC bin install path: ${THC_INSTALL_BIN_SUBDIR}")
+INCLUDE_DIRECTORIES(${TH_INCLUDE_PATH} ${TH_INCLUDE_PATH}/TH)
+LINK_DIRECTORIES(${TH_LIB_PATH})
 
 IF(NOT THC_INSTALL_BIN_SUBDIR
     OR NOT THC_INSTALL_LIB_SUBDIR
@@ -113,6 +143,9 @@ ELSE()
   SET(THC_INSTALL_CMAKE_SUBDIR ${Torch_INSTALL_CMAKE_SUBDIR})
 ENDIF()
 
+MESSAGE("THC lib install path: ${THC_INSTALL_LIB_SUBDIR}")
+MESSAGE("THC bin install path: ${THC_INSTALL_BIN_SUBDIR}")
+
 INCLUDE_DIRECTORIES("${CMAKE_CURRENT_SOURCE_DIR}")
 INCLUDE_DIRECTORIES("${CMAKE_CURRENT_BINARY_DIR}")
 CONFIGURE_FILE(THCGeneral.h.in "${CMAKE_CURRENT_BINARY_DIR}/THCGeneral.h")
@@ -120,17 +153,26 @@ CONFIGURE_FILE(THCGeneral.h.in "${CMAKE_CURRENT_BINARY_DIR}/THCGeneral.h")
 IF(MSVC)
   LIST(APPEND CUDA_NVCC_FLAGS "-Xcompiler /wd4819")
 ELSE()
-  SET(CMAKE_C_FLAGS "-std=c99 ${CMAKE_C_FLAGS}")
+IF(${PLATFORM} MATCHES "nvcc")
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${HIP_CXX_FLAGS}")
+ELSE()
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+ENDIF()
+ENDIF()
+
+IF(${PLATFORM} MATCHES "hcc")
+SET(mtgp32_src
+    MTGP/mtgp32-param-fast.cpp MTGP/hiprand_mtgp32.cpp)
 ENDIF()
 
 SET(src
     THCCachingAllocator.cpp
-    THCGeneral.c
-    THCStorageCopy.c
-    THCStream.c
-    THCTensor.c
-    THCTensorCopy.c
-    THCThreadLocal.c
+    THCGeneral.cc
+    THCStorageCopy.cc
+    THCStream.cc
+    THCTensor.cc
+    THCTensorCopy.cc
+    THCThreadLocal.cc
     )
 
 SET(src-cuda
@@ -168,26 +210,65 @@ foreach(THC_TYPE Byte Char Short Int Long Half Float Double)
    endforeach()
 endforeach()
 
-MESSAGE(STATUS "got cuda version " ${CUDA_VERSION})
+IF(${PLATFORM} MATCHES "nvcc")
+  MESSAGE(STATUS "got cuda version " ${CUDA_VERSION})
 
 IF(CUDA_HAS_FP16 OR NOT ${CUDA_VERSION} LESS 7.5)
   MESSAGE(STATUS "Found CUDA with FP16 support, compiling with torch.CudaHalfTensor")
   LIST(APPEND src-cuda THCHalf.cu)
-  LIST(APPEND CUDA_NVCC_FLAGS "-DCUDA_HAS_FP16=1")
-  SET(CMAKE_C_FLAGS "-DCUDA_HAS_FP16=1 ${CMAKE_C_FLAGS}")
+# TODO: HIP EQUIVALENT: MANEESH
+# the below statement is temporarily commented. Got to have an equivalent FP16 support flag
+#  LIST(APPEND CUDA_NVCC_FLAGS "-DCUDA_HAS_FP16=1")
+#  SET(CMAKE_C_FLAGS "-DCUDA_HAS_FP16=1 ${CMAKE_C_FLAGS}")
 ELSE(CUDA_HAS_FP16 OR NOT ${CUDA_VERSION} LESS 7.5)
   MESSAGE(STATUS "Could not find CUDA with FP16 support, compiling without torch.CudaHalfTensor")
 ENDIF(CUDA_HAS_FP16 OR NOT ${CUDA_VERSION} LESS 7.5)
 
 MESSAGE(STATUS "CUDA_NVCC_FLAGS: ${CUDA_NVCC_FLAGS}")
+ENDIF() #PLATFORM
 
-CUDA_ADD_LIBRARY(THC SHARED ${src} ${src-cuda})
-CUDA_ADD_CUBLAS_TO_TARGET(THC)
-TARGET_LINK_LIBRARIES(THC TH ${CUDA_curand_LIBRARY})
+IF(${PLATFORM} MATCHES "hcc")
+  list(APPEND src-cuda THCHalf.cu)
+  set(CMAKE_SHARED_LINKER_FLAGS "-Wl,-Bsymbolic")
+  SET(HIP_HCC_FLAGS "${HIP_HCC_FLAGS} -DGENERIC_GRID_LAUNCH=1")
+ELSE()
+  SET(HIP_HCC_FLAGS "")
+ENDIF()
 
+SET(HIP_NVCC_FLAGS "")
+
+IF(${PLATFORM} MATCHES "hcc")
+  HIP_ADD_LIBRARY(THC SHARED ${src} ${src-cuda} ${mtgp32_src})
+ELSEIF(${PLATFORM} MATCHES "nvcc")
+  HIP_ADD_LIBRARY(THC SHARED ${src} ${src-cuda})
+ENDIF()
+
+IF(${PLATFORM} STREQUAL "nvcc")
+  CUDA_ADD_CUBLAS_TO_TARGET(THC)
+  TARGET_LINK_LIBRARIES(THC TH ${CUDA_curand_LIBRARY})
+ENDIF()
+
+IF(${PLATFORM} STREQUAL "hcc")
+  FIND_LIBRARY(HIPBLAS_LIBRARY hipblas_hcc HINTS ${HIPBLAS_PATH}/lib)
+  TARGET_LINK_LIBRARIES(THC TH hip_hcc ${HIPBLAS_LIBRARY})
+ENDIF()
+
+IF(${PLATFORM} STREQUAL "nvcc")
 IF(USE_MAGMA)
-  TARGET_LINK_LIBRARIES(THC ${MAGMA_LIBRARIES} ${CUDA_cusparse_LIBRARY})
+  FIND_LIBRARY(HIPBLAS_LIBRARY hipblas_nvcc HINTS ${HIPBLAS_PATH}/lib)
+  FIND_LIBRARY(CUDART_LIBRARY cudart HINTS ${CUDA_SDK_ROOT_DIR}/lib64)
+  TARGET_LINK_LIBRARIES(
+    THC
+      ${MAGMA_LIBRARIES}
+      ${CUDA_cusparse_LIBRARY}
+      ${HIPBLAS_LIBRARY} ${CUDART_LIBRARY})
+ELSE()
+  FIND_LIBRARY(HIPBLAS_LIBRARY hipblas_nvcc HINTS ${HIPBLAS_PATH}/lib)
+  FIND_LIBRARY(CUDART_LIBRARY cudart HINTS /usr/local/cuda/lib64)
+  TARGET_LINK_LIBRARIES(
+    THC ${CUDA_cusparse_LIBRARY} ${HIPBLAS_LIBRARY} ${CUDART_LIBRARY})
 ENDIF(USE_MAGMA)
+ENDIF()
 
 INSTALL(TARGETS THC
           RUNTIME DESTINATION "${THC_INSTALL_BIN_SUBDIR}"
@@ -241,6 +322,12 @@ INSTALL(FILES
           DESTINATION "${THC_INSTALL_INCLUDE_SUBDIR}/THC")
 
 INSTALL(FILES
+        MTGP/hiprand_mtgp32.h
+        MTGP/mtgp32-fast.h
+        DESTINATION "${THC_INSTALL_INCLUDE_SUBDIR}/THC/MTGP")
+
+
+INSTALL(FILES
           generic/THCStorage.c
           generic/THCStorage.cu
           generic/THCStorage.h
@@ -269,8 +356,6 @@ INSTALL(FILES
           generic/THCTensorMathPointwise.cu
           generic/THCTensorMathReduce.h
           generic/THCTensorMathReduce.cu
-          generic/THCTensorMathScan.h
-          generic/THCTensorMathScan.cu
           generic/THCTensorScatterGather.h
           generic/THCTensorScatterGather.cu
           generic/THCTensorIndex.h

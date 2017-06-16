@@ -1,3 +1,4 @@
+#!/bin/bash
 set -e
 
 cd "$(dirname "$0")/../.."
@@ -13,6 +14,8 @@ else
 fi
 C_FLAGS="$BASIC_C_FLAGS $LDFLAGS"
 function build() {
+  echo "BUILDING $1"
+  echo "============================================================"
   mkdir -p build/$1
   cd build/$1
   cmake ../../$1 -DCMAKE_MODULE_PATH="$BASE_DIR/cmake/FindCUDA" \
@@ -24,7 +27,8 @@ function build() {
               -DCUDA_NVCC_FLAGS="$BASIC_C_FLAGS" \
               -DTH_INCLUDE_PATH="$INSTALL_DIR/include" \
               -DTH_LIB_PATH="$INSTALL_DIR/lib"
-  make install -j$(getconf _NPROCESSORS_ONLN)
+  make -j$(getconf _NPROCESSORS_ONLN)
+  make install
   cd ../..
 
   if [[ $(uname) == 'Darwin' ]]; then
@@ -56,9 +60,9 @@ build THNN
 if [[ "$1" == "--with-cuda" ]]; then
     build THC
     build THCUNN
-    if [[ $(uname) != 'Darwin' ]]; then
-        build_nccl
-    fi
+    #if [[ $(uname) != 'Darwin' ]]; then
+    #    build_nccl
+    #fi
 fi
 
 CPP_FLAGS=" -std=c++11 "

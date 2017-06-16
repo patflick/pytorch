@@ -35,7 +35,4 @@ THC_API void THCTensor_(max)(THCState *state,
 THC_API real THCTensor_(minall)(THCState *state, THCTensor *self);
 THC_API real THCTensor_(maxall)(THCState *state, THCTensor *self);
 
-THC_API accreal THCTensor_(dist)(THCState *state, THCTensor *self, THCTensor *src,
-                              real value);
-
 #endif
