@@ -9,12 +9,12 @@
 #endif
 
 struct __half2floatOp {
-  __device__
+  __device__ __host__
   float operator()(half v) const { return __half2float(v); }
 };
 
 struct __float2halfOp {
-  __device__
+  __device__ __host__
   half operator()(float v) const { return __float2half(v); }
 };
 

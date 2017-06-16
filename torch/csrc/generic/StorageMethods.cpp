@@ -1,5 +1,5 @@
 #ifdef WITH_CUDA
-#include <cuda_runtime.h>
+#include <hip/hip_runtime.h>
 #endif
 
 static PyObject * THPStorage_(size)(THPStorage *self)
@@ -20,13 +20,13 @@ static PyObject * THPStorage_(isPinned)(THPStorage *self)
 {
   HANDLE_TH_ERRORS
 #ifdef WITH_CUDA
-  cudaPointerAttributes attr;
-  cudaError_t err = cudaPointerGetAttributes(&attr, self->cdata->data);
-  if (err != cudaSuccess) {
-    cudaGetLastError();
+  hipPointerAttribute_t attr;
+  hipError_t err = hipPointerGetAttributes(&attr, self->cdata->data);
+  if (err != hipSuccess) {
+    hipGetLastError();
     Py_RETURN_FALSE;
   }
-  return PyBool_FromLong(attr.memoryType == cudaMemoryTypeHost);
+  return PyBool_FromLong(attr.memoryType == hipMemoryTypeHost);
 #else
   Py_RETURN_FALSE;
 #endif
@@ -348,8 +348,8 @@ THStorage * THPStorage_(_newShared_filename)(PyObject *args)
     THPUtils_invalidArguments(args, "_new_shared in file system mode", 1, "a handle (string/bytes) and storage size (int)");
     return NULL;
   }
-  const char *manager_handle = THPUtils_bytesAsString(_manager_handle);
-  const char *object_handle = THPUtils_bytesAsString(_object_handle);
+  const char *manager_handle = ""; // THPUtils_bytesAsString(_manager_handle);
+  const char *object_handle = ""; //THPUtils_bytesAsString(_object_handle);
   long size = THPUtils_unpackLong(_size);
 
   libshm_context *ctx = libshm_context_new(manager_handle, object_handle,

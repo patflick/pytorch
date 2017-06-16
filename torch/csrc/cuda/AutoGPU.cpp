@@ -47,7 +47,7 @@ bool THCPAutoGPU::setDevice(int new_device) {
     return false;
 
   if (device == -1)
-    THCudaCheck(cudaGetDevice(&device));
+    THCudaCheck(hipGetDevice(&device));
   if (new_device != device)
     THCPModule_setDevice(new_device);
   return true;

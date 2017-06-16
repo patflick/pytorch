@@ -4,7 +4,7 @@
 #include "Module.h"
 
 #include <structmember.h>
-#include <cuda_runtime_api.h>
+#include <hip/hip_runtime_api.h>
 
 PyObject *THCPStreamClass = NULL;
 
@@ -13,7 +13,7 @@ static PyObject * THCPStream_pynew(PyTypeObject *type, PyObject *args, PyObject 
   HANDLE_TH_ERRORS
 
   int current_device;
-  THCudaCheck(cudaGetDevice(&current_device));
+  THCudaCheck(hipGetDevice(&current_device));
 
   THPObjectPtr ptr = (PyObject *)type->tp_alloc(type, 0);
   THCPStream* self = (THCPStream *)ptr.get();
@@ -30,7 +30,7 @@ static PyObject * THCPStream_pynew(PyTypeObject *type, PyObject *args, PyObject 
       return NULL;
     }
   } else {
-    stream = THCStream_new(cudaStreamNonBlocking);
+    stream = THCStream_new(hipStreamNonBlocking);
   }
 
   self->cdata = stream;

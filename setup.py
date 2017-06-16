@@ -36,7 +36,7 @@ def parallelCCompile(self, sources, output_dir=None, macros=None, include_dirs=N
 
     return objects
 
-distutils.ccompiler.CCompiler.compile = parallelCCompile
+#distutils.ccompiler.CCompiler.compile = parallelCCompile
 
 ################################################################################
 # Custom build commands
@@ -183,7 +183,7 @@ if WITH_HIP:
     hip_path = '/opt/rocm/hip/'
     hip_include_path = '/opt/rocm/hip/include'
     hip_lib_path = '/opt/rocm/hip/lib'
-    extra_compile_args.append('-D__HIP_PLATFORM_HCC__')
+    #extra_compile_args.append('-D__HIP_PLATFORM_HCC__')
 
     os.environ["CC"] = 'hipcc'
     os.environ["CXX"] = 'hipcc'
@@ -311,7 +311,7 @@ setup(name="torch", version="0.1",
     },
     packages=packages,
     package_data={'torch': [
-        'lib/*.so*', 'lib/*.dylib*',
+        'lib/*.so*', 'lib/*.dylib*', 'lib/*.so',
         'lib/torch_shm_manager',
         'lib/*.h',
         'lib/include/TH/*.h', 'lib/include/TH/generic/*.h',
