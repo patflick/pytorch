@@ -210,7 +210,7 @@ void THNN_CudaLookupTable_accGradParameters(
   THLongStorage_free(inputSize);
 
   // Sort the inputs into sorted with the corresponding indices
-  THIndexTensor_(sort)(state, sorted, indices, input, 0, 0);
+  //THIndexTensor_(sort)(state, sorted, indices, input, 0, 0);
 
   long *sorted_data = THIndexTensor_(data)(state, sorted);
   long  *indices_data = THIndexTensor_(data)(state, indices);

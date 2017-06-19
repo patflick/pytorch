@@ -18,16 +18,16 @@ function build() {
   echo "============================================================"
   mkdir -p build/$1
   cd build/$1
-  cmake ../../$1 -DCMAKE_MODULE_PATH="$BASE_DIR/cmake/FindCUDA" \
+  CC= CXX= cmake ../../$1 -DCMAKE_MODULE_PATH="$BASE_DIR/cmake/FindCUDA" \
               -DTorch_FOUND="1" \
-              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_BUILD_TYPE="" \
               -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
               -DCMAKE_C_FLAGS="$C_FLAGS" \
               -DCMAKE_CXX_FLAGS="$C_FLAGS $CPP_FLAGS" \
               -DCUDA_NVCC_FLAGS="$BASIC_C_FLAGS" \
               -DTH_INCLUDE_PATH="$INSTALL_DIR/include" \
               -DTH_LIB_PATH="$INSTALL_DIR/lib"
-  make -j$(getconf _NPROCESSORS_ONLN)
+  make VERBOSE=1 -j$(getconf _NPROCESSORS_ONLN)
   make install
   cd ../..
 

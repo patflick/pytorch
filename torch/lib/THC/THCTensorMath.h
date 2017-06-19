@@ -34,8 +34,8 @@
 #include "generic/THCTensorIndex.h"
 #include "THCGenerateAllTypes.h"
 
-#include "generic/THCTensorSort.h"
-#include "THCGenerateAllTypes.h"
+//#include "generic/THCTensorSort.h"
+//#include "THCGenerateAllTypes.h"
 
 THC_API void THCudaTensor_tril(THCState *state, THCudaTensor *self, THCudaTensor *src, long k);
 THC_API void THCudaTensor_triu(THCState *state, THCudaTensor *self, THCudaTensor *src, long k);

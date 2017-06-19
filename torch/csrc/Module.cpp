@@ -385,8 +385,8 @@ IMPLEMENT_STATELESS(kthvalue)
 IMPLEMENT_STATELESS(mode)
 IMPLEMENT_STATELESS(median)
 IMPLEMENT_STATELESS(cross)
-IMPLEMENT_STATELESS(sort)
-IMPLEMENT_STATELESS(topk)
+//IMPLEMENT_STATELESS(sort)
+//IMPLEMENT_STATELESS(topk)
 IMPLEMENT_STATELESS(t)
 IMPLEMENT_STATELESS(transpose)
 IMPLEMENT_STATELESS(squeeze)
@@ -685,8 +685,8 @@ static PyMethodDef TorchMethods[] = {
   {"mode",            (PyCFunction)THPModule_mode,              METH_VARARGS | METH_KEYWORDS, NULL},
   {"median",          (PyCFunction)THPModule_median,            METH_VARARGS | METH_KEYWORDS, NULL},
   {"cross",           (PyCFunction)THPModule_cross,             METH_VARARGS | METH_KEYWORDS, NULL},
-  {"sort",            (PyCFunction)THPModule_sort,              METH_VARARGS | METH_KEYWORDS, NULL},
-  {"topk",            (PyCFunction)THPModule_topk,              METH_VARARGS | METH_KEYWORDS, NULL},
+  //{"sort",            (PyCFunction)THPModule_sort,              METH_VARARGS | METH_KEYWORDS, NULL},
+  //{"topk",            (PyCFunction)THPModule_topk,              METH_VARARGS | METH_KEYWORDS, NULL},
   {"t",               (PyCFunction)THPModule_t,                 METH_VARARGS | METH_KEYWORDS, NULL},
   {"transpose",       (PyCFunction)THPModule_transpose,         METH_VARARGS | METH_KEYWORDS, NULL},
   {"squeeze",         (PyCFunction)THPModule_squeeze,           METH_VARARGS | METH_KEYWORDS, NULL},
