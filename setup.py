@@ -194,8 +194,10 @@ if WITH_HIP:
     #include_dirs.append("/home/patrick/")
     extra_link_args.append('-L' + hip_lib_path)
     extra_link_args.append('-Wl,-rpath,' + hip_lib_path)
-    extra_link_args.append('')
-    extra_compile_args += ['-DWITH_CUDA']
+    extra_link_args.append('-L' + '/opt/rocm/lib')
+    extra_link_args.append('-Wl,-rpath,' + '/opt/rocm/lib')
+    extra_link_args.append('-hc -std=c++amp -ldl -lm -lpthread -Wl,--whole-archive -lmcwamp -Wl,--no-whole-archive')
+    extra_compile_args += ['-DWITH_CUDA -hc -std=c++amp']
     main_libraries += ['THC']
     main_sources += [
         "torch/csrc/cuda/Module.cpp",
