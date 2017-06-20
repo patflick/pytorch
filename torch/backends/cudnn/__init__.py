@@ -31,6 +31,7 @@ def _loadlib():
         raise OSError("Could not load cuDNN")
 
 def is_acceptable(tensor):
+    return False
     if not (isinstance(tensor, torch.cuda.HalfTensor) or
             isinstance(tensor, torch.cuda.FloatTensor) or
             isinstance(tensor, torch.cuda.DoubleTensor)):

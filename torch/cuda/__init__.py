@@ -38,9 +38,9 @@ of the CUDA driver.""".format(str(torch._C._cuda_getDriverVersion())))
     if platform.system() == 'Darwin':
         _cudart = ctypes.cdll.LoadLibrary('libcudart.dylib')
     else:
-        _cudart = ctypes.cdll.LoadLibrary('libcudart.so')
-    _cudart.cudaGetErrorName.restype = ctypes.c_char_p
-    _cudart.cudaGetErrorString.restype = ctypes.c_char_p
+        _cudart = ctypes.cdll.LoadLibrary('libhsa-runtime64.so')
+    #_cudart.cudaGetErrorName.restype = ctypes.c_char_p
+    #_cudart.cudaGetErrorString.restype = ctypes.c_char_p
 
 
 def cudart():
@@ -123,7 +123,7 @@ from ..storage import _StorageBase
 
 if not hasattr(torch._C, 'CudaDoubleStorageBase'):
     # Define dummy base classes
-    for t in ['Double', 'Float', 'Long', 'Int', 'Short', 'Char', 'Byte', 'Half']:
+    for t in ['Double', 'Float', 'Long', 'Int', 'Short', 'Char', 'Byte']:
         storage_name = 'Cuda{0}StorageBase'.format(t)
         tensor_name = 'Cuda{0}TensorBase'.format(t)
 
@@ -160,8 +160,6 @@ class ShortStorage(_CudaBase, torch._C.CudaShortStorageBase, _StorageBase):
 class CharStorage(_CudaBase, torch._C.CudaCharStorageBase, _StorageBase):
     pass
 class ByteStorage(_CudaBase, torch._C.CudaByteStorageBase, _StorageBase):
-    pass
-class HalfStorage(_CudaBase, torch._C.CudaHalfStorageBase, _StorageBase):
     pass
 
 class DoubleTensor(_CudaBase, torch._C.CudaDoubleTensorBase, _TensorBase):
@@ -207,12 +205,6 @@ class ByteTensor(_CudaBase, torch._C.CudaByteTensorBase, _TensorBase):
     @classmethod
     def storage_type(cls):
         return ByteStorage
-class HalfTensor(_CudaBase, torch._C.CudaHalfTensorBase, _TensorBase):
-    def is_signed(self):
-        return True
-    @classmethod
-    def storage_type():
-        return HalfStorage
 
 
 torch._storage_classes.add(DoubleStorage)
