@@ -27,8 +27,7 @@ function build() {
               -DCUDA_NVCC_FLAGS="$BASIC_C_FLAGS" \
               -DTH_INCLUDE_PATH="$INSTALL_DIR/include" \
               -DTH_LIB_PATH="$INSTALL_DIR/lib"
-  make VERBOSE=1 -j$(getconf _NPROCESSORS_ONLN)
-  make install
+  make VERBOSE=1 -j$(getconf _NPROCESSORS_ONLN) install
   cd ../..
 
   if [[ $(uname) == 'Darwin' ]]; then

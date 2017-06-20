@@ -1,5 +1,5 @@
 #ifdef WITH_CUDA
-#include <hip/hip_runtime.h>
+#include <hip/hip_runtime_api.h>
 #endif
 
 static PyObject * THPStorage_(size)(THPStorage *self)
