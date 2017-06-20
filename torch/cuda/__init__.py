@@ -38,9 +38,10 @@ of the CUDA driver.""".format(str(torch._C._cuda_getDriverVersion())))
     if platform.system() == 'Darwin':
         _cudart = ctypes.cdll.LoadLibrary('libcudart.dylib')
     else:
-        _cudart = ctypes.cdll.LoadLibrary('libhsa-runtime64.so')
-    #_cudart.cudaGetErrorName.restype = ctypes.c_char_p
-    #_cudart.cudaGetErrorString.restype = ctypes.c_char_p
+        #_cudart = ctypes.cdll.LoadLibrary('libhsa-runtime64.so')
+        _cudart = ctypes.cdll.LoadLibrary('libhip_hcc.so')
+    _cudart.hipGetErrorName.restype = ctypes.c_char_p
+    _cudart.hipGetErrorString.restype = ctypes.c_char_p
 
 
 def cudart():

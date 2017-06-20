@@ -10,7 +10,7 @@ ERROR_NOT_READY = 34
 
 class CudaError(RuntimeError):
     def __init__(self, code):
-        msg = cudart().cudaGetErrorString(code).decode('utf-8')
+        msg = cudart().hipGetErrorString(code).decode('utf-8')
         super(CudaError, self).__init__('{0} ({1})'.format(msg, code))
 
 
@@ -25,7 +25,7 @@ class Stream(torch._C._CudaStreamBase):
             return super(Stream, cls).__new__(cls, **kwargs)
 
     def wait_event(self, event):
-        check_error(cudart().cudaStreamWaitEvent(self, event, ctypes.c_int(0)))
+        check_error(cudart().hipStreamWaitEvent(self, event, ctypes.c_int(0)))
 
     def wait_stream(self, stream):
         self.wait_event(stream.record_event())
@@ -33,18 +33,18 @@ class Stream(torch._C._CudaStreamBase):
     def record_event(self, event=None):
         if event is None:
             event = Event()
-        check_error(cudart().cudaEventRecord(event, self))
+        check_error(cudart().hipEventRecord(event, self))
         return event
 
     def query(self):
-        res = cudart().cudaStreamQuery(self)
+        res = cudart().hipStreamQuery(self)
         if res == ERROR_NOT_READY:
             return False
         check_error(res)
         return True
 
     def synchronize(self):
-        check_error(cudart().cudaStreamSynchronize(self))
+        check_error(cudart().hipStreamSynchronize(self))
 
     @property
     def _as_parameter_(self):
@@ -80,11 +80,11 @@ class Event(object):
 
         ptr = ctypes.c_void_p()
         self._cudart = cudart()
-        check_error(self._cudart.cudaEventCreateWithFlags(ctypes.byref(ptr), flags))
+        check_error(self._cudart.hipEventCreateWithFlags(ctypes.byref(ptr), flags))
         self._as_parameter_ = ptr
 
     def __del__(self):
-        check_error(self._cudart.cudaEventDestroy(self._as_parameter_))
+        check_error(self._cudart.hipEventDestroy(self._as_parameter_))
         del self._as_parameter_
 
     def record(self, stream=None):
@@ -93,7 +93,7 @@ class Event(object):
         stream.record_event(self)
 
     def query(self):
-        res = cudart().cudaEventQuery(self)
+        res = cudart().hipEventQuery(self)
         if res == ERROR_NOT_READY:
             return False
         check_error(res)
@@ -101,12 +101,12 @@ class Event(object):
 
     def elapsed_time(self, end_event):
         time_ms = ctypes.c_float()
-        check_error(cudart().cudaEventElapsedTime(
+        check_error(cudart().hipEventElapsedTime(
             ctypes.byref(time_ms), self, end_event))
         return time_ms.value
 
     def synchronize(self):
-        check_error(cudart().cudaEventSynchronize(self))
+        check_error(cudart().hipEventSynchronize(self))
 
     def __repr__(self):
         return '<torch.cuda.Event {0:#x}>'.format(self._as_parameter_.value)
