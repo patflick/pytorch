@@ -26,8 +26,8 @@ bool THCPAutoGPU::setObjDevice(PyObject *obj) {
     new_device = THCudaDoubleTensor_getDevice(LIBRARY_STATE ((THCPDoubleTensor*)obj)->cdata);
   } else if (obj_type == THCPFloatTensorClass) {
     new_device = THCudaTensor_getDevice(LIBRARY_STATE ((THCPFloatTensor*)obj)->cdata);
-  } else if (obj_type == THCPHalfTensorClass) {
-    new_device = THCudaHalfTensor_getDevice(LIBRARY_STATE ((THCPHalfTensor*)obj)->cdata);
+  //} else if (obj_type == THCPHalfTensorClass) {
+    //new_device = THCudaHalfTensor_getDevice(LIBRARY_STATE ((THCPHalfTensor*)obj)->cdata);
   } else if (obj_type == THCPLongTensorClass) {
     new_device = THCudaLongTensor_getDevice(LIBRARY_STATE ((THCPLongTensor*)obj)->cdata);
   } else if (obj_type == THCPIntTensorClass) {

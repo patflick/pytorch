@@ -183,12 +183,13 @@ if WITH_HIP:
     hip_path = '/opt/rocm/hip/'
     hip_include_path = '/opt/rocm/hip/include'
     hip_lib_path = '/opt/rocm/hip/lib'
-    #extra_compile_args.append('-D__HIP_PLATFORM_HCC__=1')
+    extra_compile_args.append('-D__HIP_PLATFORM_HCC__=')
 
-    os.environ["CC"] = 'hipcc'
-    os.environ["CXX"] = 'hipcc'
+    #os.environ["CC"] = 'hipcc'
+    #os.environ["CXX"] = 'hipcc'
 
-    include_dirs.append(hip_include_path)
+    include_dirs.append('/opt/rocm/hip/include')
+    include_dirs.append('/opt/rocm/hcc-1.0/include')
     include_dirs.append('/opt/rocm/hcc/include')
     include_dirs.append('/opt/rocm/hcblas/include')
 
@@ -196,6 +197,8 @@ if WITH_HIP:
     extra_link_args.append('-Wl,-rpath,' + hip_lib_path)
     extra_link_args.append('-L' + '/opt/rocm/lib')
     extra_link_args.append('-Wl,-rpath,' + '/opt/rocm/lib')
+    extra_link_args.append('-L' + '/opt/rocm/hcc-1.0/lib')
+    extra_link_args.append('-Wl,-rpath,' + '/opt/rocm/hcc-1.0/lib')
     #extra_link_args.append('-hc -std=c++amp -Bsymbolic -ldl -lm -lpthread -Wl,--whole-archive -lmcwamp -Wl,--no-whole-archive')
     #extra_compile_args += ['-DWITH_CUDA -hc -std=c++amp']
     extra_compile_args += ['-DWITH_CUDA']

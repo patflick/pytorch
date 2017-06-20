@@ -247,7 +247,7 @@ IF(${PLATFORM} MATCHES "nvcc")
 ENDIF() #PLATFORM
 
 IF(${PLATFORM} MATCHES "hcc")
-  list(APPEND src-cuda THCHalf.cu)
+  #list(APPEND src-cuda THCHalf.cu) # XXX: for now disbale Half
   set(CMAKE_SHARED_LINKER_FLAGS "-Wl,-Bsymbolic")
   SET(HIP_HCC_FLAGS "${HIP_HCC_FLAGS} -DGENERIC_GRID_LAUNCH=1")
 ELSE()

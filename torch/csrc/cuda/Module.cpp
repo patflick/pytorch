@@ -18,7 +18,7 @@ static bool THCPModule_loadClasses(PyObject *module_dict)
 #define ASSERT_NOT_NULL(ptr) if (!(ptr)) { THPUtils_setError("couldn't load classes"); return false; }
   ASSERT_NOT_NULL(THCPDoubleStorageClass = PyMapping_GetItemString(module_dict, (char*)"DoubleStorage"));
   ASSERT_NOT_NULL(THCPFloatStorageClass  = PyMapping_GetItemString(module_dict, (char*)"FloatStorage"));
-  ASSERT_NOT_NULL(THCPHalfStorageClass   = PyMapping_GetItemString(module_dict, (char*)"HalfStorage"));
+  //ASSERT_NOT_NULL(THCPHalfStorageClass   = PyMapping_GetItemString(module_dict, (char*)"HalfStorage"));
   ASSERT_NOT_NULL(THCPLongStorageClass   = PyMapping_GetItemString(module_dict, (char*)"LongStorage"));
   ASSERT_NOT_NULL(THCPIntStorageClass    = PyMapping_GetItemString(module_dict, (char*)"IntStorage"));
   ASSERT_NOT_NULL(THCPShortStorageClass  = PyMapping_GetItemString(module_dict, (char*)"ShortStorage"));
@@ -26,7 +26,7 @@ static bool THCPModule_loadClasses(PyObject *module_dict)
   ASSERT_NOT_NULL(THCPByteStorageClass   = PyMapping_GetItemString(module_dict, (char*)"ByteStorage"));
 
   ASSERT_NOT_NULL(THCPDoubleTensorClass  = PyMapping_GetItemString(module_dict, (char*)"DoubleTensor"));
-  ASSERT_NOT_NULL(THCPHalfTensorClass    = PyMapping_GetItemString(module_dict, (char*)"HalfTensor"));
+  //ASSERT_NOT_NULL(THCPHalfTensorClass    = PyMapping_GetItemString(module_dict, (char*)"HalfTensor"));
   ASSERT_NOT_NULL(THCPFloatTensorClass   = PyMapping_GetItemString(module_dict, (char*)"FloatTensor"));
   ASSERT_NOT_NULL(THCPLongTensorClass    = PyMapping_GetItemString(module_dict, (char*)"LongTensor"));
   ASSERT_NOT_NULL(THCPIntTensorClass     = PyMapping_GetItemString(module_dict, (char*)"IntTensor"));
