@@ -3,7 +3,7 @@
 
 #include <Python.h>
 #include <cstddef>
-#include <cudnn.h>
+#include "cudnn2mio.h"
 
 namespace torch { namespace cudnn {
 

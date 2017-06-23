@@ -1,8 +1,8 @@
 #include "Conv.h"
 
 #include "THC/THC.h"
+#include "cudnn2mio.h"
 
-#include <cudnn.h>
 #include <stdint.h>
 #include <memory>
 #include <unordered_map>

@@ -1,4 +1,4 @@
-#include <cudnn.h>
+#include "cudnn2mio.h"
 #include "Types.h"
 #include "Handles.h"
 #include "Conv.h"

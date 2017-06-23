@@ -1,7 +1,7 @@
 #ifndef THP_CUDNN_EXCEPTIONS_INC
 #define THP_CUDNN_EXCEPTIONS_INC
 
-#include <cudnn.h>
+#include "cudnn2mio.h"
 #include <stdexcept>
 
 namespace torch { namespace cudnn {

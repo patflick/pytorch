@@ -7,11 +7,17 @@ cudnnDataType_t getCudnnDataType(PyObject *tensorClass)
 {
   if (tensorClass == THCPFloatTensorClass) {
     return CUDNN_DATA_FLOAT;
+  } else {
+    throw std::runtime_error("MiOpen supports only float32");
+  }
+  /*
   } else if (tensorClass == THCPDoubleTensorClass) {
     return CUDNN_DATA_DOUBLE;
   } else if (tensorClass == THCPHalfTensorClass) {
     return CUDNN_DATA_HALF;
   }
+  */
+
   if (!PyType_Check(tensorClass)) {
     throw std::runtime_error("getCudnnDataType() expects a PyTypeObject");
   }

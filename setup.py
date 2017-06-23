@@ -13,7 +13,8 @@ import os
 #WITH_CUDA = os.path.exists('/Developer/NVIDIA/CUDA-7.5/include') or os.path.exists('/usr/local/cuda/include')
 WITH_CUDA = True
 #WITH_CUDNN = WITH_CUDA
-WITH_CUDNN = False
+WITH_CUDNN = True
+WITH_MIOPEN = True
 WITH_HIP = True
 DEBUG = False
 
@@ -188,9 +189,7 @@ if WITH_HIP:
     #os.environ["CC"] = 'hipcc'
     #os.environ["CXX"] = 'hipcc'
 
-    include_dirs.append('/opt/rocm/hip/include')
-    include_dirs.append('/opt/rocm/hcc-1.0/include')
-    include_dirs.append('/opt/rocm/hcc/include')
+    include_dirs.append('/opt/rocm/include')
     include_dirs.append('/opt/rocm/hcblas/include')
 
     extra_link_args.append('-L' + hip_lib_path)
@@ -238,7 +237,11 @@ elif WITH_CUDA:
     ]
 
 if WITH_CUDNN:
-    main_libraries += ['cudnn']
+    if WITH_MIOPEN:
+        main_libraries += ['MIOpen']
+        extra_compile_args += ['-DWITH_MIOPEN']
+    else:
+        main_libraries += ['cudnn']
     main_sources += [
         "torch/csrc/cudnn/Module.cpp",
         "torch/csrc/cudnn/Conv.cpp",
