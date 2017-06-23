@@ -31,7 +31,9 @@ def _loadlib():
         raise OSError("Could not load cuDNN")
 
 def is_acceptable(tensor):
-    return False
+    # XXX: hackily using MiOpen for FloatTensors, Note this does
+    #      not dynamically load MiOpen for RNN stuff
+    return isinstance(tensor, torch.cuda.FloatTensor)
     if not (isinstance(tensor, torch.cuda.HalfTensor) or
             isinstance(tensor, torch.cuda.FloatTensor) or
             isinstance(tensor, torch.cuda.DoubleTensor)):
@@ -47,7 +49,7 @@ def is_acceptable(tensor):
 
 _handles = {}
 
-benchmark = False
+benchmark = True
 verbose = False
 workspace_limit = None
 
